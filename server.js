@@ -1,0 +1,30 @@
+import express from 'express';
+import dotenv from 'dotenv';
+import cors from 'cors';
+
+import generateRouter from './routes/generate.js';
+import paddleRouter from './routes/paddle.js';
+
+dotenv.config(); // Load .env variables
+
+const app = express();
+
+// Middleware
+app.use(cors());
+app.use(express.json());
+app.use(express.static('public'));
+// Routes
+app.use('/api/generate', generateRouter);
+app.use('/api/paddle', paddleRouter);
+
+// Optional: Home test route
+app.get('/', (req, res) => {
+  res.send('✅ AI MCQ Generator Backend is running');
+});
+
+// Use resolved port from .env or fallback
+const port = process.env.PORT || 4000;
+app.listen(port, () => {
+  console.log(`✅ Server running on port ${port}`);
+});
+
