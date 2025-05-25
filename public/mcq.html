@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>AI MCQ Generator</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 30px;
+      max-width: 900px;
+      margin: auto;
+    }
+
+    textarea {
+      width: 100%;
+      height: 120px;
+      padding: 10px;
+      font-size: 16px;
+      margin-bottom: 20px;
+    }
+
+    button {
+      padding: 12px 24px;
+      background-color: #10b981;
+      color: white;
+      border: none;
+      font-size: 16px;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+
+ .mcq-card {
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  padding: 16px;
+  margin-top: 20px;
+  border-radius: 10px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+  text-align: left; /* ✅ Sola yasla */
+}
+
+
+    .mcq-card h3 {
+      margin-top: 0;
+    }
+
+    .option {
+      padding-left: 20px;
+    }
+
+    .answer {
+      margin-top: 10px;
+      font-weight: bold;
+      color: #10b981;
+    }
+
+    .explanation {
+      margin-top: 5px;
+      color: #374151;
+      font-style: italic;
+    }
+  </style>
+</head>
+<body>
+  <h2>🧠 Enter Topic or Text to Generate MCQs</h2>
+  <textarea id="textInput" placeholder="e.g. owls and eagles..."></textarea><br>
+  <button onclick="generate()">✨ Generate MCQs</button>
+<!-- 🟨 Generate button sabit olarak alt tarafta -->
+<div style="text-align: center; margin-top: 20px;">
+  <div style="text-align:center; margin-top: 20px;">
+    <label><strong>🌍 Question Language:</strong></label>
+    <select id="languageSelect" style="padding: 8px; margin-left: 8px; border-radius: 6px;">
+      <option value="">🌐 Auto Detect</option>
+      <option value="İngilizce">English</option>
+      <option value="Türkçe">Türkçe</option>
+      <option value="İspanyolca">Español</option>
+      <option value="Fransızca">Français</option>
+      <option value="Almanca">Deutsch</option>
+      <option value="İtalyanca">Italiano</option>
+      <option value="Portekizce">Português</option>
+      <option value="Rusça">Русский</option>
+      <option value="Arapça">العربية</option>
+      <option value="Çince">中文</option>
+      <option value="Japonca">日本語</option>
+      <option value="Korece">한국어</option>
+      <option value="Flemenkçe">Nederlands</option>
+      <option value="Lehçe">Polski</option>
+      <option value="Hintçe">हिंदी</option>
+      <option value="Bengalce">বাংলা</option>
+      <option value="Vietnamca">Tiếng Việt</option>
+      <option value="Tayca">ภาษาไทย</option>
+      <option value="Romence">Română</option>
+      <option value="Ukraynaca">Українська</option>
+    </select>
+  </div>
+ <div style="margin-top: 14px;">
+  <label><strong>📊 Number of Questions:</strong></label>
+  <select id="questionCount" style="padding: 8px; margin-left: 8px; border-radius: 6px;">
+    <option value="5" selected>5</option>
+    <option value="10">10</option>
+    <option value="15">15</option>
+    <option value="20">20</option>
+  </select>
+</div>
+
+<div style="margin-top: 14px;">
+  <label><strong>🔢 Options per Question:</strong></label>
+  <select id="optionCount" style="padding: 8px; margin-left: 8px; border-radius: 6px;">
+    <option value="2">2</option>
+    <option value="3">3</option>
+    <option value="4" selected>4</option>
+    <option value="5">5</option>
+  </select>
+</div>
+
+  <div id="outputContainer"></div>
+
+  <script>
+    async function generate() {
+      const text = document.getElementById('textInput').value.trim();
+      const output = document.getElementById('outputContainer');
+      output.innerHTML = ""; // Clear previous
+
+      if (!text || text.length < 5) {
+        alert("⚠️ Please enter some text first.");
+        return;
+      }
+
+      try {
+        const API_BASE = location.hostname === "localhost"
+          ? "http://localhost:4000"
+          : "https://doitwithai.onrender.com"; // ✅ Replace with your actual Render subdomain
+
+      const selectedLanguage = document.getElementById("languageSelect").value;
+      const selectedQuestionCount = parseInt(document.getElementById("questionCount").value);
+const selectedOptionCount = parseInt(document.getElementById("optionCount").value);
+
+const res = await fetch(`${API_BASE}/api/generate`, {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+ body: JSON.stringify({
+  text,
+  userLanguage: selectedLanguage,
+  questionCount: selectedQuestionCount,
+  optionCount: selectedOptionCount
+})
+});
+
+        const data = await res.json();
+        const questions = data.questions;
+
+        if (!Array.isArray(questions)) {
+          output.innerHTML = "❌ Unexpected response format.";
+          return;
+        }
+
+        questions.forEach((q, i) => {
+          const card = document.createElement("div");
+          card.className = "mcq-card";
+          card.innerHTML = `
+            <h3>Q${i + 1}. ${q.question}</h3>
+          ${Object.entries(q.options).map(([key, val]) => `
+  <div class="option">${key}) ${val}</div>
+`).join('')}
+            <div class="answer">✅ Answer: ${q.correct_answer}</div>
+            <div class="explanation">💡 ${q.explanation}</div>
+          `;
+          output.appendChild(card);
+        });
+
+      } catch (err) {
+        console.error(err);
+        output.innerHTML = "❌ Failed to generate questions. Check console.";
+      }
+    }
+  </script>
+</body>
+</html>
