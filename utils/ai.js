@@ -1,7 +1,7 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { franc } from 'franc'; // Auto language detection
+import { franc } from 'franc';
 
-export async function generateMCQ(text, userLanguage = "", questionCount = 5, optionCount = 4) {
+export async function generateMCQ(text, userLanguage = "", questionCount = 5, optionCount = 4, forceEducational = false) {
   const languageMap = {
     "eng": "İngilizce", "tur": "Türkçe", "spa": "İspanyolca", "fra": "Fransızca",
     "deu": "Almanca", "ita": "İtalyanca", "por": "Portekizce", "rus": "Rusça",
@@ -25,17 +25,17 @@ export async function generateMCQ(text, userLanguage = "", questionCount = 5, op
   console.log("🗣️ Language selected:", questionLanguage);
   console.log("🌐 Prompt language sent to Gemini:", promptLang);
 
-  const randomizer = Math.floor(Math.random() * 10000);
+  const letters = Array.from({ length: optionCount }, (_, i) => String.fromCharCode(65 + i));
+  const letterList = letters.join(", ");
+  const optionsObject = letters.map(l => `"${l}": "..."`).join(", ");
 
   const prompt = (subtext) => {
-    const letters = Array.from({ length: optionCount }, (_, i) => String.fromCharCode(65 + i));
-    const letterList = letters.join(", ");
-    const optionsObject = letters.map(l => `"${l}": "..."`).join(", ");
-
-    return `
+    let basePrompt = `
 You are an AI teacher assistant.
 
 🎯 Your job is to generate exactly ${questionCount} unique multiple-choice questions (MCQs) based on the topic provided.
+
+Your answers must be based strictly on accurate, official, and educational sources.
 
 Each question MUST include exactly ${optionCount} answer choices labeled ${letterList}. Do NOT include extra or missing options.
 
@@ -55,56 +55,88 @@ Use this strict JSON format:
 ❗ Do NOT use any English unless ${promptLang} is English.
 🚫 Avoid repeating questions or similar phrasing from previous attempts.
 
-Randomizer ID: ${randomizer}
+// YENİ EKLEMELER BURADAN BAŞLIYOR
+
+✅ **Sorularınızı yalnızca sağlanan 'Topic' metnindeki bilgileri kullanarak oluşturun.**
+❌ **Metinde bulunmayan, varsayımsal veya yanıltıcı bilgiler içeren sorular sormayın.**
+🤔 **Her sorunun net, anlaşılır ve tek bir doğru cevabı olduğundan emin olun.**
+🧐 **Çok genel veya çok spesifik (önemsiz) bilgilerden soru oluşturmaktan kaçının.**
+💡 **Anahtar kavramları, tanımları, önemli olayları veya ilişkileri hedefleyen sorular sorun.**
+🔄 **Seçeneklerin (options) her birinin anlamlı ve sorunun bağlamına uygun olduğundan emin olun. Yanlış seçenekler mantıklı, ancak yine de yanlış olmalıdır.**
+🚫 **"Yukarıdakilerin hepsi" veya "Hiçbiri" gibi seçenekler kullanmaktan kaçının.**
+`;
+
+    if (forceEducational) {
+        basePrompt += `
+❗ Your answers must be based strictly on accurate, official, and educational sources.
+❌ Do NOT invent terms or use colloquial expressions (e.g., "royal return", "king’s journey").
+✅ Focus only on real, validated knowledge (e.g., chess rules from FIDE, mathematical laws, scientific facts).
+`;
+    }
+
+    return `${basePrompt}
 
 Topic:
 """
 ${subtext}
-"""
-`;
-  };
+"""`;
+};
 
   const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-8b" });
+  const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
   let finalQuestions = [];
+
+  const isValid = (q) => {
+    const optionValues = Object.values(q.options || {});
+    return (
+      q.question && typeof q.question === "string" && q.question.length > 10 &&
+      q.options && typeof q.options === "object" &&
+      letters.every(k => q.options[k] && q.options[k].trim().length > 0) &&
+      new Set(optionValues).size === optionValues.length &&
+      letters.includes(q.correct_answer) &&
+      q.explanation && q.explanation.length > 5
+    );
+  };
 
   for (let i = 0; i < 3 && finalQuestions.length < questionCount; i++) {
     try {
       const result = await model.generateContent(prompt(text));
       let raw = await result.response.text();
-
       raw = raw.replace(/^\s*```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
       const match = raw.match(/\[\s*{[\s\S]*?}\s*\]/);
       if (!match) throw new Error("Invalid response format");
 
       const mcqs = JSON.parse(match[0]);
-
-      const letters = Array.from({ length: optionCount }, (_, i) => String.fromCharCode(65 + i));
-      const valid = mcqs.filter(q =>
-        q.question &&
-        typeof q.question === "string" &&
-        q.options && typeof q.options === "object" &&
-        letters.every(k => q.options[k]) &&
-        letters.includes(q.correct_answer) &&
-        q.explanation && q.explanation.length >= 5
-      );
-
-      finalQuestions.push(...valid);
-
+      finalQuestions.push(...mcqs.filter(isValid));
     } catch (err) {
       console.error("⚠️ Retry failed:", err.message);
     }
   }
 
-  // ✅ Shuffle soruların sırası
+  while (finalQuestions.length < questionCount) {
+    console.warn("♻️ Ek üretim başlatılıyor. Kalan:", questionCount - finalQuestions.length);
+    try {
+      const result = await model.generateContent(prompt(text));
+      let raw = await result.response.text();
+      raw = raw.replace(/^\s*```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
+      const match = raw.match(/\[\s*{[\s\S]*?}\s*\]/);
+      if (!match) break;
+
+      const mcqs = JSON.parse(match[0]);
+      finalQuestions.push(...mcqs.filter(isValid));
+    } catch (err) {
+      break;
+    }
+  }
+
+  shuffleArray(finalQuestions);
+  return finalQuestions.slice(0, questionCount);
+
   function shuffleArray(array) {
     for (let i = array.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [array[i], array[j]] = [array[j], array[i]];
     }
   }
-
-  shuffleArray(finalQuestions);
-  return finalQuestions.slice(0, questionCount);
 }
