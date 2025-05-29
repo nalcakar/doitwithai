@@ -1,11 +1,13 @@
 import express from 'express';
-import Redis from 'ioredis';
+import { Redis } from '@upstash/redis';
 import { v4 as uuidv4 } from 'uuid';
 
 const router = express.Router();
 
-const redis = new Redis(process.env.UPSTASH_REDIS_REST_URL, {
-  password: process.env.UPSTASH_REDIS_REST_TOKEN
+// ✅ Connect to Upstash Redis
+const redis = new Redis({
+  url: process.env.UPSTASH_REDIS_REST_URL,
+  token: process.env.UPSTASH_REDIS_REST_TOKEN,
 });
 
 // ✅ Get token balance
@@ -23,13 +25,13 @@ router.get('/', async (req, res) => {
   }
 
   const todayKey = `tokens:${visitorId}:${new Date().toISOString().slice(0, 10)}`;
-  let tokens = await redis.get(todayKey);
-  tokens = tokens ? parseInt(tokens) : 0;
+  let tokensUsed = await redis.get(todayKey);
+  tokensUsed = tokensUsed ? parseInt(tokensUsed) : 0;
 
-  res.json({ tokens: 20 - tokens });
+  res.json({ tokens: Math.max(20 - tokensUsed, 0) });
 });
 
-// ✅ Increment token use
+// ✅ Increment token usage
 router.post('/increment', async (req, res) => {
   let visitorId = req.cookies?.visitor_id;
 
@@ -52,7 +54,7 @@ router.post('/increment', async (req, res) => {
   }
 
   await redis.incr(todayKey);
-  await redis.expire(todayKey, 86400); // 24h expiry
+  await redis.expire(todayKey, 86400); // Expire in 24 hours
 
   res.json({ success: true });
 });
