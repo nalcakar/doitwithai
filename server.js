@@ -1,7 +1,8 @@
 import express from 'express';
 import dotenv from 'dotenv';
 import cors from 'cors';
-
+import visitorTokenRouter from './routes/visitorTokens.js';
+app.use('/api/visitor-tokens', visitorTokenRouter);
 import generateRouter from './routes/generate.js';
 
 dotenv.config(); // Load .env variables
@@ -12,7 +13,7 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
-
+app.use('/api/visitor-tokens', visitorTokenRouter);
 // Routes
 app.use('/api/generate', generateRouter);
 
