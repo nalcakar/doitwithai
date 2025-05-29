@@ -1,16 +1,19 @@
 import express from 'express';
-import { Redis } from '@upstash/redis';
+import Redis from 'ioredis';
 import { v4 as uuidv4 } from 'uuid';
 
 const router = express.Router();
 
-// ✅ Connect to Upstash Redis
-const redis = new Redis({
-  url: process.env.UPSTASH_REDIS_REST_URL,
-  token: process.env.UPSTASH_REDIS_REST_TOKEN,
+const redis = new Redis(process.env.UPSTASH_REDIS_REST_URL, {
+  password: process.env.UPSTASH_REDIS_REST_TOKEN
 });
 
-// ✅ Get token balance
+function getTodayKey(visitorId) {
+  const today = new Date().toISOString().slice(0, 10);
+  return `tokens:${visitorId}:${today}`;
+}
+
+// ✅ Get visitor token count
 router.get('/', async (req, res) => {
   let visitorId = req.cookies?.visitor_id;
 
@@ -24,14 +27,14 @@ router.get('/', async (req, res) => {
     });
   }
 
-  const todayKey = `tokens:${visitorId}:${new Date().toISOString().slice(0, 10)}`;
-  let tokensUsed = await redis.get(todayKey);
-  tokensUsed = tokensUsed ? parseInt(tokensUsed) : 0;
+  const key = getTodayKey(visitorId);
+  let used = await redis.get(key);
+  used = used ? parseInt(used) : 0;
 
-  res.json({ tokens: Math.max(20 - tokensUsed, 0) });
+  res.json({ tokens: 20 - used });
 });
 
-// ✅ Increment token usage
+// ✅ Increment visitor usage
 router.post('/increment', async (req, res) => {
   let visitorId = req.cookies?.visitor_id;
 
@@ -45,17 +48,16 @@ router.post('/increment', async (req, res) => {
     });
   }
 
-  const todayKey = `tokens:${visitorId}:${new Date().toISOString().slice(0, 10)}`;
-  let current = await redis.get(todayKey);
+  const key = getTodayKey(visitorId);
+  let current = await redis.get(key);
   current = current ? parseInt(current) : 0;
 
   if (current >= 20) {
     return res.status(403).json({ error: 'Visitor token limit exceeded' });
   }
 
-  await redis.incr(todayKey);
-  await redis.expire(todayKey, 86400); // Expire in 24 hours
-
+  await redis.incr(key);
+  await redis.expire(key, 86400); // 1 day
   res.json({ success: true });
 });
 
