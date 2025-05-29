@@ -1,32 +1,30 @@
 import express from 'express';
-import dotenv from 'dotenv';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
-import visitorRoutes from './routes/visitorTokens.js';
-import bodyParser from 'body-parser';
-
-dotenv.config();
+import generateRouter from './routes/generate.js';
+import visitorTokensRouter from './routes/visitorTokens.js';
 
 const app = express();
 const PORT = process.env.PORT || 4000;
 
 // ✅ Middleware
 app.use(cors({
-  origin: 'https://doitwithai.org',
+  origin: ['https://doitwithai.org'], // or '*' if testing
   credentials: true
 }));
-app.use(bodyParser.json());
+app.use(express.json());
 app.use(cookieParser());
 
 // ✅ Routes
-app.use('/api/visitor-tokens', visitorRoutes);
+app.use('/api/generate', generateRouter);
+app.use('/api/visitor-tokens', visitorTokensRouter);
 
-// ✅ Root check
+// ✅ Root Test Route
 app.get('/', (req, res) => {
-  res.send('🟢 MCQ Visitor Token API is running');
+  res.send('✅ AI MCQ API is running');
 });
 
 // ✅ Start server
 app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`🚀 Server is running on port ${PORT}`);
 });
