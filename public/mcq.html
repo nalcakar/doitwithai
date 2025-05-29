@@ -3,7 +3,12 @@
 <head>
   <title>AI MCQ Generator</title>
   <style>
-    
+    body {
+      font-family: Arial, sans-serif;
+      padding: 30px;
+      max-width: 900px;
+      margin: auto;
+    }
 
     textarea {
       width: 100%;
@@ -56,20 +61,6 @@
   </style>
 </head>
 <body>
-
-<div style="margin-bottom: 20px; text-align: right;">
-
-
-<a href="https://doitwithai.lemonsqueezy.com/buy/2b4072f5-5312-43ae-ab65-049c447c0859" target="_blank">
-  <button style="background-color: #6366f1; color: white; padding: 12px 24px; border: none; border-radius: 6px; cursor: pointer;">
-    🪙 Buy Tokens
-  </button>
-</a>
-</div>
-<div id="tokenBadge" style="margin-bottom: 16px; font-size: 16px; font-weight: bold; color: #374151; display: none;">
-  🔢 Tokens left: <span id="tokenCount">...</span>
-</div>
-<div id="visitorTokenUsage" style="margin-top: 20px; font-size: 14px; color: #6b7280;"></div>
   <h2>🧠 Enter Topic or Text to Generate MCQs</h2>
   <textarea id="textInput" placeholder="e.g. owls and eagles...">futbol kuralları</textarea><br>
   <button onclick="generate()">✨ Generate MCQs</button>
@@ -126,9 +117,6 @@
 
 
 <script>
-
-
-
   async function generate() {
     document.getElementById("printBtn").style.display = "none"; // yeni üretim başlarken gizle
 
@@ -161,36 +149,8 @@
     });
 
     const data = await res.json();
-    if (res.status === 429) {
-  alert(`🚫 You reached your daily limit.\nUsed: ${data.usage?.used}/20`);
-  return;
-}
-// ✅ Show visitor usage if not logged in
-if (!window.isMember && data?.usage) {
-  const { used = 0 } = data.usage;
-  const bar = `<div style="margin-top:10px;">Visitor usage: ${used}/20</div>`;
-  document.getElementById("visitorTokenUsage").innerHTML = bar;
-}
     const questions = data.questions;
-if (questions?.length > 0) {
-  try {
-    await fetch('/wp-json/mcq/v1/deduct-tokens', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-WP-Nonce': WPSettings.nonce
-      },
-      body: JSON.stringify({ count: questions.length }),
-      credentials: 'same-origin'
-    });
 
-    // Refresh badge after deduction
-    loadUserTokenBadge();
-  } catch (e) {
-    console.error("Token deduction failed", e);
-    alert("⚠️ Token deduction failed. Please reload the page.");
-  }
-}
     questions.forEach((q, i) => {
       const card = document.createElement("div");
       card.className = "mcq-card";
@@ -328,9 +288,6 @@ if (questions?.length > 0) {
       .explanation { font-style: italic; margin-top: 5px; }
     </style>
     </head><body>
-
- 
-
     <h2>📝 Questions</h2>
   `);
 
@@ -375,34 +332,6 @@ if (questions?.length > 0) {
   printWindow.print();
 }
 
-async function loadUserTokenBadge() {
-  try {
-    const res = await fetch('/wp-json/mcq/v1/tokens', {
-      headers: { 'X-WP-Nonce': WPSettings.nonce },
-      credentials: 'same-origin'
-    });
-
-    const data = await res.json();
-    if (data.tokens !== undefined) {
-      document.getElementById("tokenCount").textContent = data.tokens;
-      document.getElementById("tokenBadge").style.display = "block";
-      window.isMember = true;
-    } else {
-      window.isMember = false;
-    }
-  } catch (err) {
-    window.isMember = false;
-    document.getElementById("tokenBadge").style.display = "none";
-  }
-}
-
-
-  window.addEventListener("DOMContentLoaded", loadUserTokenBadge);
-
-
-
-
-  
 </script>
 <button id="printBtn" onclick="printSelected()" style="display: none;">🖨️ Print Selected</button>
 

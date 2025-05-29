@@ -1,7 +1,6 @@
 import express from 'express';
 import dotenv from 'dotenv';
 import cors from 'cors';
-import visitorRouter from './routes/visitor.js';
 
 import generateRouter from './routes/generate.js';
 
@@ -13,7 +12,7 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
-app.use('/visitor', visitorRouter);
+
 // Routes
 app.use('/api/generate', generateRouter);
 
