@@ -1,10 +1,12 @@
 import express from 'express';
-import { createClient } from '@upstash/redis';
+import { Redis } from '@upstash/redis';
 
 const router = express.Router();
-const redis = new createClient({
+
+// ✅ Create Redis client using REST URL & TOKEN
+const redis = new Redis({
   url: process.env.UPSTASH_REDIS_REST_URL,
-  token: process.env.UPSTASH_REDIS_REST_TOKEN
+  token: process.env.UPSTASH_REDIS_REST_TOKEN,
 });
 
 const DAILY_LIMIT = 20;
