@@ -10,11 +10,12 @@ const redis = new Redis({
 
 const DAILY_LIMIT = 20;
 
-function getVisitorId(req) {
+// ✅ FIXED: Accept both req and res
+function getVisitorId(req, res) {
   let id = req.cookies?.visitor_id;
   if (!id) {
     id = uuidv4();
-    res.cookie('visitor_id', id, { maxAge: 86400000, httpOnly: true });
+    res.cookie('visitor_id', id, { maxAge: 86400000, httpOnly: true, sameSite: 'Lax' });
   }
   return id;
 }
@@ -26,7 +27,7 @@ function getTodayKey(visitorId) {
 
 // ✅ GET usage
 router.get('/', async (req, res) => {
-  const visitorId = getVisitorId(req);
+  const visitorId = getVisitorId(req, res); // ✅ pass res
   const key = getTodayKey(visitorId);
 
   const used = (await redis.get(key)) || 0;
@@ -37,20 +38,19 @@ router.get('/', async (req, res) => {
 
 // ✅ Increment usage
 router.post('/increment', async (req, res) => {
-  const ip = req.headers['x-forwarded-for']?.split(',')[0] || req.socket.remoteAddress || "unknown";
-  const redisKey = `visitor_tokens_${ip}`;
+  const visitorId = getVisitorId(req, res); // ✅ pass res
+  const key = getTodayKey(visitorId);
 
   try {
-    const used = parseInt(await redis.get(redisKey)) || 0;
+    const used = parseInt(await redis.get(key)) || 0;
 
     if (used >= DAILY_LIMIT) {
       return res.status(403).json({ error: 'Token limit reached' });
     }
 
     const newCount = used + 1;
-
-    await redis.set(redisKey, newCount);
-    await redis.expire(redisKey, 86400); // Set expiration in a separate call
+    await redis.set(key, newCount);
+    await redis.expire(key, 86400); // expire in 1 day
 
     res.json({ success: true, used: newCount });
   } catch (err) {
@@ -58,6 +58,5 @@ router.post('/increment', async (req, res) => {
     res.status(500).json({ error: 'Increment failed' });
   }
 });
-
 
 export default router;
