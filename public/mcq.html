@@ -3,7 +3,12 @@
 <head>
   <title>AI MCQ Generator</title>
   <style>
-    
+    body {
+      font-family: Arial, sans-serif;
+      padding: 30px;
+      max-width: 900px;
+      margin: auto;
+    }
 
     textarea {
       width: 100%;
@@ -56,20 +61,6 @@
   </style>
 </head>
 <body>
-
-<div style="margin-bottom: 20px; text-align: right;">
-
-
-<a href="https://doitwithai.lemonsqueezy.com/buy/2b4072f5-5312-43ae-ab65-049c447c0859" target="_blank">
-  <button style="background-color: #6366f1; color: white; padding: 12px 24px; border: none; border-radius: 6px; cursor: pointer;">
-    🪙 Buy Tokens
-  </button>
-</a>
-</div>
-<div id="tokenBadge" style="margin-bottom: 16px; font-size: 16px; font-weight: bold; color: #374151; display: none;">
-  🔢 Tokens left: <span id="tokenCount">...</span>
-</div>
-<div id="visitorTokenUsage" style="margin-top: 20px; font-size: 14px; color: #6b7280;"></div>
   <h2>🧠 Enter Topic or Text to Generate MCQs</h2>
   <textarea id="textInput" placeholder="e.g. owls and eagles...">futbol kuralları</textarea><br>
   <button onclick="generate()">✨ Generate MCQs</button>
@@ -126,10 +117,151 @@
 
 
 <script>
+  async function generate() {
+    document.getElementById("printBtn").style.display = "none"; // yeni üretim başlarken gizle
 
+    const text = document.getElementById('textInput').value.trim();
+    const output = document.getElementById('outputContainer');
+    output.innerHTML = "";
 
+    if (!text || text.length < 5) {
+      alert("⚠️ Please enter some text first.");
+      return;
+    }
 
-function printSelected() {
+    const API_BASE = location.hostname === "localhost"
+      ? "http://localhost:4000"
+      : "https://doitwithai.onrender.com";
+
+    const selectedLanguage = document.getElementById("languageSelect").value;
+    const selectedQuestionCount = parseInt(document.getElementById("questionCount").value);
+    const selectedOptionCount = parseInt(document.getElementById("optionCount").value);
+
+    const res = await fetch(`${API_BASE}/api/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        text,
+        userLanguage: selectedLanguage,
+        questionCount: selectedQuestionCount,
+        optionCount: selectedOptionCount
+      })
+    });
+
+    const data = await res.json();
+    const questions = data.questions;
+
+    questions.forEach((q, i) => {
+      const card = document.createElement("div");
+      card.className = "mcq-card";
+      output.appendChild(card);
+
+      let isEditing = false;
+
+      function render() {
+        card.innerHTML = `
+        <div style="display: flex; align-items: flex-start; gap: 10px;">
+  <input type="checkbox" class="print-checkbox" checked style="margin-top: 6px;">
+  <h3 style="margin: 0;">Q${i + 1}. <span class="qtext">${q.question}</span></h3>
+</div>
+          <div class="edit-question"></div>
+
+          ${Object.entries(q.options).map(([key, val]) => `
+            <div class="option">
+              <strong>${key})</strong> <span class="opt-${key}">${val}</span>
+              <div class="edit-opt-${key}"></div>
+            </div>
+          `).join('')}
+
+          <div class="answer">✅ Answer: <span class="ans">${q.correct_answer}</span></div>
+          <div class="edit-answer"></div>
+
+          <div class="explanation">💡 <span class="expl">${q.explanation}</span></div>
+          <div class="edit-expl"></div>
+
+          <div style="margin-top:12px;">
+            <button onclick="toggleEdit_${i}()">✏️ ${isEditing ? 'Close Edit' : 'Edit'}</button>
+            <button onclick="reproduce_${i}()">♻️ Reproduce</button>
+          </div>
+        `;
+
+        if (isEditing) {
+          const qInput = document.createElement("input");
+          qInput.type = "text";
+          qInput.value = q.question;
+          qInput.style = "width:100%; margin-bottom:10px;";
+          qInput.oninput = (e) => {
+            q.question = e.target.value;
+            card.querySelector(".qtext").textContent = q.question;
+          };
+          card.querySelector(".edit-question").appendChild(qInput);
+
+          Object.entries(q.options).forEach(([key, val]) => {
+            const optInput = document.createElement("input");
+            optInput.type = "text";
+            optInput.value = val;
+            optInput.style = "width:100%; margin:4px 0 10px;";
+            optInput.oninput = (e) => {
+              q.options[key] = e.target.value;
+              card.querySelector(`.opt-${key}`).textContent = q.options[key];
+            };
+            card.querySelector(`.edit-opt-${key}`).appendChild(optInput);
+          });
+
+          const ansInput = document.createElement("input");
+          ansInput.type = "text";
+          ansInput.value = q.correct_answer;
+          ansInput.style = "width:100%; margin-bottom:10px;";
+          ansInput.oninput = (e) => {
+            q.correct_answer = e.target.value;
+            card.querySelector(".ans").textContent = q.correct_answer;
+          };
+          card.querySelector(".edit-answer").appendChild(ansInput);
+
+          const explInput = document.createElement("input");
+          explInput.type = "text";
+          explInput.value = q.explanation;
+          explInput.style = "width:100%; margin-bottom:10px;";
+          explInput.oninput = (e) => {
+            q.explanation = e.target.value;
+            card.querySelector(".expl").textContent = q.explanation;
+          };
+          card.querySelector(".edit-expl").appendChild(explInput);
+        }
+      }
+
+      window[`toggleEdit_${i}`] = () => {
+        isEditing = !isEditing;
+        render();
+      };
+
+      window[`reproduce_${i}`] = async () => {
+        const singleRes = await fetch(`${API_BASE}/api/generate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            text,
+            userLanguage: selectedLanguage,
+            questionCount: 1,
+            optionCount: selectedOptionCount
+          })
+        });
+        const newData = await singleRes.json();
+        if (newData?.questions?.[0]) {
+          Object.assign(q, newData.questions[0]);
+          isEditing = false;
+          render();
+        } else {
+          alert("❌ Failed to reproduce new question.");
+        }
+      };
+
+      render();
+    });
+    document.getElementById("printBtn").style.display = "inline-block";
+  }
+
+ function printSelected() {
   const allCards = document.querySelectorAll(".mcq-card");
   const selected = Array.from(allCards).filter(card =>
     card.querySelector(".print-checkbox")?.checked
@@ -156,9 +288,6 @@ function printSelected() {
       .explanation { font-style: italic; margin-top: 5px; }
     </style>
     </head><body>
-
- 
-
     <h2>📝 Questions</h2>
   `);
 
@@ -203,118 +332,6 @@ function printSelected() {
   printWindow.print();
 }
 
-async function generate() {
-  const text = document.getElementById('textInput').value.trim();
-  const output = document.getElementById('outputContainer');
-  output.innerHTML = "";
-
-  if (!text || text.length < 5) {
-    alert("⚠️ Please enter some text first.");
-    return;
-  }
-
-  if (!WPSettings?.nonce) {
-    try {
-      const res = await fetch('https://doitwithai.onrender.com/api/visitor-tokens', {
-        credentials: 'include'
-      });
-      const data = await res.json();
-      if (data.tokens <= 0) {
-        alert("🪙 You’ve used all your free tokens for today.");
-        window.open("https://doitwithai.lemonsqueezy.com/buy/2b4072f5-5312-43ae-ab65-049c447c0859", "_blank");
-        return;
-      }
-    } catch (err) {
-      console.error("❌ Visitor token check failed", err);
-      alert("⚠️ Unable to check token balance.");
-      return;
-    }
-  }
-
-  const API_BASE = location.hostname === "localhost" ? "http://localhost:4000" : "https://doitwithai.onrender.com";
-  const selectedLanguage = document.getElementById("languageSelect").value;
-  const selectedQuestionCount = parseInt(document.getElementById("questionCount").value);
-  const selectedOptionCount = parseInt(document.getElementById("optionCount").value);
-
-  const res = await fetch(`${API_BASE}/api/generate`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ text, userLanguage: selectedLanguage, questionCount: selectedQuestionCount, optionCount: selectedOptionCount })
-  });
-
-  const data = await res.json();
-  const questions = data.questions;
-
-  if (questions?.length > 0) {
-    if (!WPSettings?.nonce) {
-      await fetch('https://doitwithai.onrender.com/api/visitor-tokens/increment', {
-        method: 'POST',
-        credentials: 'include'
-      });
-    } else {
-      await fetch('/wp-json/mcq/v1/deduct-tokens', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': WPSettings.nonce },
-        body: JSON.stringify({ count: questions.length }),
-        credentials: 'same-origin'
-      });
-    }
-    loadUserTokenBadge();
-  }
-
-  // Render logic skipped
-}
-
-async function loadUserTokenBadge() {
-  try {
-    const res = WPSettings?.nonce ?
-      await fetch('/wp-json/mcq/v1/tokens', {
-        headers: { 'X-WP-Nonce': WPSettings.nonce },
-        credentials: 'same-origin'
-      }) :
-      await fetch('https://doitwithai.onrender.com/api/visitor-tokens', {
-        credentials: 'include'
-      });
-
-    const data = await res.json();
-    document.getElementById("tokenCount").textContent = data.tokens;
-    document.getElementById("tokenBadge").style.display = "block";
-  } catch (err) {
-    console.error("❌ Token badge failed", err);
-    document.getElementById("tokenBadge").style.display = "none";
-  }
-}
-
-window.addEventListener("DOMContentLoaded", loadUserTokenBadge);
-
-
-
-async function deductUserTokens(count) {
-  if (!WPSettings?.isLoggedIn) return;
-
-  try {
-    const res = await fetch("https://doitwithai.org/wp-json/mcq/v1/deduct-tokens", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-WP-Nonce": WPSettings?.nonce
-      },
-      body: JSON.stringify({ count })
-    });
-
-    const result = await res.json();
-
-    if (!res.ok) {
-      alert("❌ Token deduction failed: " + (result?.error || "Unknown error"));
-    } else {
-      console.log("✅ Tokens deducted. Remaining:", result.remaining);
-    }
-  } catch (err) {
-    console.error("❌ Token deduction error:", err);
-  }
-}
-
-  
 </script>
 <button id="printBtn" onclick="printSelected()" style="display: none;">🖨️ Print Selected</button>
 

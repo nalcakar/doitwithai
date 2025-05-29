@@ -1,30 +1,27 @@
 import express from 'express';
+import dotenv from 'dotenv';
 import cors from 'cors';
-import cookieParser from 'cookie-parser';
+
 import generateRouter from './routes/generate.js';
-import visitorTokensRouter from './routes/visitorTokens.js';
+
+dotenv.config(); // Load .env variables
 
 const app = express();
-const PORT = process.env.PORT || 4000;
 
-// ✅ Middleware
-app.use(cors({
-  origin: ['https://doitwithai.org'], // or '*' if testing
-  credentials: true
-}));
+// Middleware
+app.use(cors());
 app.use(express.json());
-app.use(cookieParser());
+app.use(express.static('public'));
 
-// ✅ Routes
+// Routes
 app.use('/api/generate', generateRouter);
-app.use('/api/visitor-tokens', visitorTokensRouter);
 
-// ✅ Root Test Route
+// Optional: Home test route
 app.get('/', (req, res) => {
-  res.send('✅ AI MCQ API is running');
+  res.send('✅ AI MCQ Generator Backend is running');
 });
 
-// ✅ Start server
-app.listen(PORT, () => {
-  console.log(`🚀 Server is running on port ${PORT}`);
+const port = process.env.PORT || 4000;
+app.listen(port, () => {
+  console.log(`✅ Server running on port ${port}`);
 });
