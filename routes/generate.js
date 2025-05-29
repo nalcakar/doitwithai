@@ -1,5 +1,6 @@
 import express from 'express';
 import { generateMCQ } from '../utils/ai.js';
+import { checkVisitorToken, incrementVisitorToken } from '../utils/visitorFunctions.js';
 
 const router = express.Router();
 
