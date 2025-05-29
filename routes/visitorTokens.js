@@ -2,7 +2,6 @@ import express from 'express';
 import { Redis } from '@upstash/redis';
 
 const router = express.Router();
-
 const redis = new Redis({
   url: process.env.UPSTASH_REDIS_REST_URL,
   token: process.env.UPSTASH_REDIS_REST_TOKEN
@@ -10,7 +9,6 @@ const redis = new Redis({
 
 const DAILY_LIMIT = 20;
 
-// ✅ Check how many tokens the visitor has left
 router.get('/', async (req, res) => {
   const ip = req.headers['x-forwarded-for']?.split(',')[0] || req.socket.remoteAddress || "unknown";
   const redisKey = `visitor_tokens_${ip}`;
@@ -25,7 +23,7 @@ router.get('/', async (req, res) => {
   }
 });
 
-// ✅ Deduct 1 token
+// 🔴 THIS IS THE MISSING PART (add this to actually increment visitor tokens)
 router.post('/increment', async (req, res) => {
   const ip = req.headers['x-forwarded-for']?.split(',')[0] || req.socket.remoteAddress || "unknown";
   const redisKey = `visitor_tokens_${ip}`;
@@ -37,7 +35,7 @@ router.post('/increment', async (req, res) => {
       return res.status(403).json({ error: 'Token limit reached' });
     }
 
-    await redis.set(redisKey, used + 1, { ex: 86400 }); // 1 day expiry
+    await redis.set(redisKey, used + 1, { ex: 86400 }); // expires in 24 hours
     res.json({ success: true, used: used + 1 });
   } catch (err) {
     console.error("❌ Redis increment failed:", err);

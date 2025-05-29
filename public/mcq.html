@@ -3,12 +3,7 @@
 <head>
   <title>AI MCQ Generator</title>
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      padding: 30px;
-      max-width: 900px;
-      margin: auto;
-    }
+    
 
     textarea {
       width: 100%;
@@ -61,6 +56,20 @@
   </style>
 </head>
 <body>
+
+<div style="margin-bottom: 20px; text-align: right;">
+
+
+<a href="https://doitwithai.lemonsqueezy.com/buy/2b4072f5-5312-43ae-ab65-049c447c0859" target="_blank">
+  <button style="background-color: #6366f1; color: white; padding: 12px 24px; border: none; border-radius: 6px; cursor: pointer;">
+    🪙 Buy Tokens
+  </button>
+</a>
+</div>
+<div id="tokenBadge" style="margin-bottom: 16px; font-size: 16px; font-weight: bold; color: #374151; display: none;">
+  🔢 Tokens left: <span id="tokenCount">...</span>
+</div>
+<div id="visitorTokenUsage" style="margin-top: 20px; font-size: 14px; color: #6b7280;"></div>
   <h2>🧠 Enter Topic or Text to Generate MCQs</h2>
   <textarea id="textInput" placeholder="e.g. owls and eagles...">futbol kuralları</textarea><br>
   <button onclick="generate()">✨ Generate MCQs</button>
@@ -117,6 +126,9 @@
 
 
 <script>
+
+
+
   async function generate() {
     document.getElementById("printBtn").style.display = "none"; // yeni üretim başlarken gizle
 
@@ -128,6 +140,22 @@
       alert("⚠️ Please enter some text first.");
       return;
     }
+  // Check visitor tokens before generating
+  if (!WPSettings?.nonce) {
+    try {
+      const res = await fetch('https://doitwithai.onrender.com/api/visitor-tokens');
+      const data = await res.json();
+      if (data.tokens <= 0) {
+        alert("🪙 You’ve used all your free tokens for today.\n\nPlease buy more tokens to continue.");
+        window.open("https://doitwithai.lemonsqueezy.com/buy/2b4072f5-5312-43ae-ab65-049c447c0859", "_blank");
+        return;
+      }
+    } catch (err) {
+      console.error("❌ Failed to check visitor tokens", err);
+      alert("⚠️ Unable to check token balance. Please try again later.");
+      return;
+    }
+  }
 
     const API_BASE = location.hostname === "localhost"
       ? "http://localhost:4000"
@@ -147,9 +175,40 @@
         optionCount: selectedOptionCount
       })
     });
+const data = await res.json();
+const questions = data.questions;
+    if (questions?.length > 0) {
+  if (WPSettings?.nonce) {
+    // Logged-in user token deduction
+    try {
+      await fetch('/wp-json/mcq/v1/deduct-tokens', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-WP-Nonce': WPSettings.nonce
+        },
+        body: JSON.stringify({ count: questions.length }),
+        credentials: 'same-origin'
+      });
 
-    const data = await res.json();
-    const questions = data.questions;
+      loadUserTokenBadge();
+    } catch (e) {
+      console.error("Token deduction failed", e);
+      alert("⚠️ Token deduction failed. Please reload the page.");
+    }
+  } else {
+    // Visitor token deduction
+    try {
+      await fetch('https://doitwithai.onrender.com/api/visitor-tokens/increment', {
+        method: 'POST'
+      });
+      loadUserTokenBadge();
+    } catch (e) {
+      console.error("Visitor token increment failed", e);
+      alert("⚠️ Visitor token error.");
+    }
+  }
+}
 
     questions.forEach((q, i) => {
       const card = document.createElement("div");
@@ -288,6 +347,9 @@
       .explanation { font-style: italic; margin-top: 5px; }
     </style>
     </head><body>
+
+ 
+
     <h2>📝 Questions</h2>
   `);
 
@@ -332,6 +394,36 @@
   printWindow.print();
 }
 
+async function loadUserTokenBadge() {
+  try {
+    let res;
+    if (WPSettings?.nonce) {
+      // Logged-in user
+      res = await fetch('/wp-json/mcq/v1/tokens', {
+        headers: { 'X-WP-Nonce': WPSettings.nonce },
+        credentials: 'same-origin'
+      });
+    } else {
+      // Visitor
+      res = await fetch('https://doitwithai.onrender.com/api/visitor-tokens');
+    }
+
+    const data = await res.json();
+    document.getElementById("tokenCount").textContent = data.tokens;
+    document.getElementById("tokenBadge").style.display = "block";
+  } catch (err) {
+    console.error("❌ Failed to load token badge", err);
+    document.getElementById("tokenBadge").style.display = "none";
+  }
+}
+
+
+  window.addEventListener("DOMContentLoaded", loadUserTokenBadge);
+
+
+
+
+  
 </script>
 <button id="printBtn" onclick="printSelected()" style="display: none;">🖨️ Print Selected</button>
 
