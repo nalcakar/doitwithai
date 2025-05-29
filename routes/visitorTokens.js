@@ -15,9 +15,13 @@ router.get('/', async (req, res) => {
   const ip = req.headers['x-forwarded-for']?.split(',')[0] || req.socket.remoteAddress;
   const redisKey = `visitor_tokens_${ip}`;
 
+  console.log("🧪 Visitor IP:", ip);
+  console.log("🔑 Redis key:", redisKey);
+
   try {
     const used = parseInt(await redis.get(redisKey)) || 0;
     const remaining = Math.max(0, DAILY_LIMIT - used);
+    console.log("🧮 Tokens used:", used);
     res.json({ tokens: remaining });
   } catch (err) {
     console.error("❌ Redis error:", err);
