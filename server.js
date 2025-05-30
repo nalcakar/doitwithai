@@ -3,20 +3,19 @@ import dotenv from 'dotenv';
 import cors from 'cors';
 
 import generateRouter from './routes/generate.js';
+import visitorTokenRouter from './routes/visitorTokens.js'; // ✅ Add this
 
-dotenv.config(); // Load .env variables
+dotenv.config();
 
 const app = express();
 
-// Middleware
 app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
 
-// Routes
 app.use('/api/generate', generateRouter);
+app.use('/api/visitor-tokens', visitorTokenRouter); // ✅ Register visitor token route
 
-// Optional: Home test route
 app.get('/', (req, res) => {
   res.send('✅ AI MCQ Generator Backend is running');
 });
