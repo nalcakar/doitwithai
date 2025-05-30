@@ -6,7 +6,7 @@ const router = express.Router();
 router.post('/', async (req, res) => {
   try {
  const { text, userLanguage, questionCount, optionCount } = req.body;
-if (!text || text.length < 10) return res.status(400).json({ error: "Text too short" });
+if (!text || text.length < 2) return res.status(400).json({ error: "Text too short" });
 
 const questions = await generateMCQ(text, userLanguage, questionCount, optionCount);
 res.json({ questions });

@@ -157,16 +157,23 @@ async function generate() {
     })
   });
 
-  const data = await res.json();
-  const questions = data.questions;
+ const data = await res.json();
 
-  if (questions?.length > 0) {
-    const success = await deductTokens(questions.length);
-    if (!success) return;
-    loadUserTokenBadge(); // refresh token count
-  }
+if (!res.ok || !data.questions || !Array.isArray(data.questions)) {
+  alert("❌ Failed to generate questions. Please try a longer or clearer topic.");
+  return;
+}
 
-  questions.forEach((q, i) => {
+const questions = data.questions;
+
+if (questions.length > 0) {
+  const success = await deductTokens(questions.length);
+  if (!success) return;
+  loadUserTokenBadge(); // refresh token count
+}
+
+questions.forEach((q, i) => {
+
     const card = document.createElement("div");
     card.className = "mcq-card";
     output.appendChild(card);
@@ -275,11 +282,13 @@ async function generate() {
 
 async function loadUserTokenBadge() {
   try {
+    let tokens = 0;
+
     if (!WPSettings?.isLoggedIn) {
       const res = await fetch(`${API_BASE}/api/visitor-tokens`);
       if (!res.ok) throw new Error("Visitor token fetch failed");
       const data = await res.json();
-      document.getElementById("tokenCount").textContent = data.tokens;
+      tokens = data.tokens;
     } else {
       const res = await fetch('/wp-json/mcq/v1/tokens', {
         headers: { 'X-WP-Nonce': WPSettings.nonce },
@@ -287,13 +296,18 @@ async function loadUserTokenBadge() {
       });
       if (!res.ok) throw new Error("Member token fetch failed");
       const data = await res.json();
-      document.getElementById("tokenCount").textContent = data.tokens;
+      tokens = data.tokens;
     }
 
+    document.getElementById("tokenCount").textContent = tokens;
     document.getElementById("tokenBadge").style.display = "block";
+
+    // Show no-credit badge if zero
+    document.getElementById("noTokensMessage").style.display = tokens === 0 ? "block" : "none";
   } catch (err) {
     console.error(err);
     document.getElementById("tokenBadge").style.display = "none";
+    document.getElementById("noTokensMessage").style.display = "none";
   }
 }
 
