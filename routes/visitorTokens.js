@@ -1,15 +1,14 @@
 import express from 'express';
-import { createClient } from '@upstash/redis';
+import { Redis } from '@upstash/redis';
 
 const router = express.Router();
-const redis = new createClient({
+const redis = new Redis({
   url: process.env.UPSTASH_REDIS_REST_URL,
   token: process.env.UPSTASH_REDIS_REST_TOKEN
 });
 
 const DAILY_LIMIT = 20;
 
-// GET remaining tokens
 router.get('/', async (req, res) => {
   const ip = req.headers['x-forwarded-for']?.split(',')[0] || req.socket.remoteAddress;
   const redisKey = `visitor_tokens_${ip}`;
@@ -24,7 +23,6 @@ router.get('/', async (req, res) => {
   }
 });
 
-// POST to deduct tokens
 router.post('/deduct', async (req, res) => {
   const ip = req.headers['x-forwarded-for']?.split(',')[0] || req.socket.remoteAddress;
   const redisKey = `visitor_tokens_${ip}`;
@@ -37,7 +35,7 @@ router.post('/deduct', async (req, res) => {
       return res.status(403).json({ error: 'Daily token limit exceeded' });
     }
 
-    await redis.set(redisKey, current + count, { ex: 86400 }); // 1 day expiry
+    await redis.set(redisKey, current + count, { ex: 86400 });
     res.json({ success: true, remaining: DAILY_LIMIT - (current + count) });
   } catch (err) {
     console.error("❌ Token deduction error:", err);
