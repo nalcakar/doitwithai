@@ -46,11 +46,12 @@ export async function generateQuestions(text, type = "mcq", userLanguage = "", q
     try {
       const result = await model.generateContent(prompt);
       const rawText = await result.response.text();
-
+console.log("📦 Gemini Raw Response:\n", rawText); // 🔍 debug raw output
       const cleaned = rawText
         .replace(/^\s*```(?:json)?\s*/i, '')
         .replace(/\s*```$/, '')
         .trim();
+console.log("🧹 Cleaned JSON Candidate:\n", cleaned); // 🔍 debug cleaned content
 
       const parsed = extractJsonArray(cleaned);
       if (parsed && Array.isArray(parsed)) {
