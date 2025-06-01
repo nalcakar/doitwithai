@@ -1,5 +1,5 @@
 import express from 'express';
-import { generateQuestions } from '../ai.js';
+import { generateQuestions } from '../utils/ai.js';
 
 const router = express.Router();
 
