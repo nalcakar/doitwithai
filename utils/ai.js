@@ -17,6 +17,20 @@ const isoMap = {
   "Vietnamca": "Vietnamese", "Tayca": "Thai", "Romence": "Romanian", "Ukraynaca": "Ukrainian"
 };
 
+function extractJsonArray(text) {
+  const start = text.indexOf("[");
+  const end = text.lastIndexOf("]");
+  if (start === -1 || end === -1 || end <= start) return null;
+
+  const jsonPart = text.slice(start, end + 1).trim();
+  try {
+    return JSON.parse(jsonPart);
+  } catch (err) {
+    console.warn("⚠️ JSON.extractJsonArray failed:", err.message);
+    return null;
+  }
+}
+
 export async function generateQuestions(text, type = "mcq", userLanguage = "", questionCount = 5, optionCount = 4) {
   const langCode = franc(text || "");
   const questionLanguage = userLanguage?.trim() || languageMap[langCode] || "İngilizce";
@@ -29,30 +43,26 @@ export async function generateQuestions(text, type = "mcq", userLanguage = "", q
   let finalQuestions = [];
 
   for (let i = 0; i < 3 && finalQuestions.length < questionCount; i++) {
-  try {
-    const result = await model.generateContent(prompt);
-    const rawText = await result.response.text();
-    const cleaned = rawText
-      .replace(/^\s*```(?:json)?\s*/i, '')
-      .replace(/\s*```$/, '')
-      .trim();
-
     try {
-      const parsed = JSON.parse(cleaned);
-      if (Array.isArray(parsed)) {
+      const result = await model.generateContent(prompt);
+      const rawText = await result.response.text();
+
+      const cleaned = rawText
+        .replace(/^\s*```(?:json)?\s*/i, '')
+        .replace(/\s*```$/, '')
+        .trim();
+
+      const parsed = extractJsonArray(cleaned);
+      if (parsed && Array.isArray(parsed)) {
         const valid = parsed.filter(q => q?.question || q?.sentence || q?.term);
         finalQuestions.push(...valid);
       } else {
-        console.warn("⚠️ AI did not return an array.");
+        console.warn("⚠️ Could not extract valid JSON array.");
       }
-    } catch (parseErr) {
-      console.warn("⚠️ JSON parsing failed:", parseErr.message);
+    } catch (apiErr) {
+      console.warn("⚠️ Gemini API error:", apiErr.message);
     }
-  } catch (apiErr) {
-    console.warn("⚠️ Gemini API error:", apiErr.message);
   }
-}
-
 
   shuffleArray(finalQuestions);
   return finalQuestions.slice(0, questionCount);
