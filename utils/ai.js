@@ -30,14 +30,20 @@ export async function generateQuestions(text, type = "mcq", userLanguage = "", q
 
   for (let i = 0; i < 3 && finalQuestions.length < questionCount; i++) {
     try {
-      const result = await model.generateContent(prompt);
       let raw = await result.response.text();
-      raw = raw.replace(/^\s*```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
-      const match = raw.match(/\[\s*{[\s\S]*?}\s*\]/);
-      if (!match) throw new Error("Invalid response format");
+raw = raw.replace(/^\s*```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
 
-      const parsed = JSON.parse(match[0]);
-      finalQuestions.push(...(Array.isArray(parsed) ? parsed : []));
+try {
+  const parsed = JSON.parse(raw);
+  if (Array.isArray(parsed)) {
+    finalQuestions.push(...parsed);
+  } else {
+    console.warn("⚠️ AI did not return an array. Skipped.");
+  }
+} catch (err) {
+  console.warn("⚠️ JSON parsing failed:", err.message);
+}
+
     } catch (err) {
       console.warn("⚠️ Retry failed:", err.message);
     }
