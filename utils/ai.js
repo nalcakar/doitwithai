@@ -46,16 +46,20 @@ export async function generateQuestions(text, type = "mcq", userLanguage = "", q
     try {
       const result = await model.generateContent(prompt);
       const rawText = await result.response.text();
-console.log("📦 Gemini Raw Response:\n", rawText); // 🔍 debug raw output
+
+      console.log("📦 Gemini Raw Response:\n", rawText);
       const cleaned = rawText
         .replace(/^\s*```(?:json)?\s*/i, '')
         .replace(/\s*```$/, '')
         .trim();
-console.log("🧹 Cleaned JSON Candidate:\n", cleaned); // 🔍 debug cleaned content
+
+      console.log("🧹 Cleaned JSON Candidate:\n", cleaned);
 
       const parsed = extractJsonArray(cleaned);
       if (parsed && Array.isArray(parsed)) {
-        const valid = parsed.filter(q => q?.question || q?.sentence || q?.term);
+        const valid = parsed.filter(q =>
+          q?.question || q?.sentence || q?.instruction || q?.keyword
+        );
         finalQuestions.push(...valid);
       } else {
         console.warn("⚠️ Could not extract valid JSON array.");
@@ -75,7 +79,7 @@ function generatePrompt(text, type, questionCount, optionCount, promptLang) {
   const letterList = letters.join(", ");
 
   const commonHeader = `You are an expert AI teaching assistant.
-Generate exactly ${questionCount} well-structured questions in ${promptLang}, based on the topic below.`;
+Generate exactly ${questionCount} well-structured questions in ${promptLang}, based on the topic below. Only return valid JSON, no extra text or commentary.`;
 
   const topicBlock = `\n\nTopic:\n"""\n${text}\n"""`;
 
@@ -85,7 +89,7 @@ Generate exactly ${questionCount} well-structured questions in ${promptLang}, ba
 ${commonHeader}
 
 Each question must include exactly ${optionCount} choices labeled ${letterList}, with only one correct answer.
-Return data in JSON format as:
+Format:
 [
   {
     "question": "...",
@@ -99,11 +103,12 @@ Return data in JSON format as:
       return `
 ${commonHeader}
 
-Generate fill-in-the-blank questions with clear blanks and an answer. Format:
+Each item should be a sentence with a blank (____), the correct answer, and an explanation.
+Format:
 [
   {
-    "question": "The capital of France is ____.",
-    "answer": "Paris",
+    "sentence": "The capital of France is ____.",
+    "correct_answer": "Paris",
     "explanation": "Paris is the capital of France."
   }
 ]${topicBlock}`;
@@ -112,10 +117,11 @@ Generate fill-in-the-blank questions with clear blanks and an answer. Format:
       return `
 ${commonHeader}
 
-Create reorder questions. Provide shuffled steps and the correct order. Format:
+Each item should have an instruction, a shuffled list of steps, the correct order (as index array), and an explanation.
+Format:
 [
   {
-    "question": "Put the steps of the water cycle in order.",
+    "instruction": "Put the steps of the water cycle in order.",
     "steps": ["Evaporation", "Condensation", "Precipitation", "Collection"],
     "correct_order": [0, 1, 2, 3],
     "explanation": "The water cycle begins with evaporation..."
@@ -126,14 +132,15 @@ Create reorder questions. Provide shuffled steps and the correct order. Format:
       return `
 ${commonHeader}
 
-Generate matching questions (e.g. term-definition). Format:
+Each item must include a matching question with two lists: term_set and definition_set. Also include correct_pairs as index pairs and explanation.
+Format:
 [
   {
     "question": "Match the following terms with their definitions.",
-    "pairs": [
-      { "left": "Photosynthesis", "right": "Process by which plants make food" },
-      { "left": "Evaporation", "right": "Change of water into vapor" }
-    ]
+    "term_set": ["Photosynthesis", "Evaporation"],
+    "definition_set": ["Process by which plants make food", "Change of water into vapor"],
+    "correct_pairs": [[0,0], [1,1]],
+    "explanation": "Each term matches its definition."
   }
 ]${topicBlock}`;
 
@@ -141,10 +148,17 @@ Generate matching questions (e.g. term-definition). Format:
       return `
 ${commonHeader}
 
-Extract key terms from the topic, along with short descriptions. Format:
+Extract key terms and give a short, clear definition for each.
+Format:
 [
-  { "term": "Osmosis", "definition": "Movement of water through a membrane" },
-  { "term": "Diffusion", "definition": "Spreading of particles from high to low concentration" }
+  {
+    "keyword": "Osmosis",
+    "definition": "Movement of water through a membrane"
+  },
+  {
+    "keyword": "Diffusion",
+    "definition": "Spreading of particles from high to low concentration"
+  }
 ]${topicBlock}`;
 
     default:
