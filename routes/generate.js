@@ -1,21 +1,18 @@
 import express from 'express';
-import { generateQuestions } from '../utils/ai.js';
-
+import { generateQuestions } from '../ai.js';
 
 const router = express.Router();
 
 router.post('/', async (req, res) => {
   try {
- const { text, userLanguage, questionCount, optionCount } = req.body;
-if (!text || text.length < 2) return res.status(400).json({ error: "Text too short" });
-
-const questions = await generateMCQ(text, userLanguage, questionCount, optionCount);
-res.json({ questions });
-
+    const { text, type, userLanguage, questionCount, optionCount } = req.body;
+    const questions = await generateQuestions(text, type, userLanguage, questionCount, optionCount);
+    res.json(questions);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Failed to generate MCQs' });
+    console.error("❌ Error generating questions:", err);
+    res.status(500).json({ error: 'Failed to generate questions.' });
   }
 });
 
 export default router;
+
