@@ -1,5 +1,6 @@
 import express from 'express';
-import { generateMCQ } from '../utils/ai.js';
+import { generateQuestions } from '../utils/ai.js';
+
 
 const router = express.Router();
 
