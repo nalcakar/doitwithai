@@ -144,22 +144,23 @@ Format:
   }
 ]${topicBlock}`;
 
-    case "keywords":
-      return `
+case "keywords":
+  return `
 ${commonHeader}
 
-Extract key terms and give a short, clear definition for each.
-Format:
+Your task is to extract and define exactly ${questionCount} important technical or conceptual keywords from the topic.
+
+Return only a valid JSON array of objects in the following format:
 [
   {
-    "keyword": "Osmosis",
-    "definition": "Movement of water through a membrane"
-  },
-  {
-    "keyword": "Diffusion",
-    "definition": "Spreading of particles from high to low concentration"
+    "keyword": "Term",
+    "definition": "A short, clear explanation of the term."
   }
-]${topicBlock}`;
+]
+
+⚠️ Do not include explanations, titles, commentary, or formatting — only a JSON array. Do not return full questions or essay prompts.
+${topicBlock}`;
+
 
     default:
       throw new Error("Unsupported question type");
