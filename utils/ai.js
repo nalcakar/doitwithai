@@ -29,25 +29,30 @@ export async function generateQuestions(text, type = "mcq", userLanguage = "", q
   let finalQuestions = [];
 
   for (let i = 0; i < 3 && finalQuestions.length < questionCount; i++) {
-    try {
-      let raw = await result.response.text();
-raw = raw.replace(/^\s*```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
+  try {
+    const result = await model.generateContent(prompt);
+    const rawText = await result.response.text();
+    const cleaned = rawText
+      .replace(/^\s*```(?:json)?\s*/i, '')
+      .replace(/\s*```$/, '')
+      .trim();
 
-try {
-  const parsed = JSON.parse(raw);
-  if (Array.isArray(parsed)) {
-    finalQuestions.push(...parsed);
-  } else {
-    console.warn("⚠️ AI did not return an array. Skipped.");
+    try {
+      const parsed = JSON.parse(cleaned);
+      if (Array.isArray(parsed)) {
+        const valid = parsed.filter(q => q?.question || q?.sentence || q?.term);
+        finalQuestions.push(...valid);
+      } else {
+        console.warn("⚠️ AI did not return an array.");
+      }
+    } catch (parseErr) {
+      console.warn("⚠️ JSON parsing failed:", parseErr.message);
+    }
+  } catch (apiErr) {
+    console.warn("⚠️ Gemini API error:", apiErr.message);
   }
-} catch (err) {
-  console.warn("⚠️ JSON parsing failed:", err.message);
 }
 
-    } catch (err) {
-      console.warn("⚠️ Retry failed:", err.message);
-    }
-  }
 
   shuffleArray(finalQuestions);
   return finalQuestions.slice(0, questionCount);
