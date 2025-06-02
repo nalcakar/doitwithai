@@ -1,0 +1,1318 @@
+[mcq_generator]
+**********
+<!DOCTYPE html>
+<html>
+<head>
+  <title>AI MCQ Generator</title>
+  <style>
+    
+
+    textarea {
+      width: 100%;
+      height: 120px;
+      padding: 10px;
+      font-size: 16px;
+      margin-bottom: 20px;
+    }
+
+    button {
+      padding: 12px 24px;
+      background-color: #10b981;
+      color: white;
+      border: none;
+      font-size: 16px;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+
+ .mcq-card {
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  padding: 16px;
+  margin-top: 20px;
+  border-radius: 10px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+  text-align: left; /* ✅ Sola yasla */
+}
+
+
+    .mcq-card h3 {
+      margin-top: 0;
+    }
+
+    .option {
+      padding-left: 20px;
+    }
+
+    .answer {
+      margin-top: 10px;
+      font-weight: bold;
+      color: #10b981;
+    }
+
+    .explanation {
+      margin-top: 5px;
+      color: #374151;
+      font-style: italic;
+    }
+
+ .choices__list--dropdown .choices__item {
+    text-align: left !important;
+  }
+  .choices__inner {
+    text-align: left !important;
+  }
+
+/* Choices.js - Make the dropdown and selected box look stylish */
+.choices__inner {
+  background-color: #f9fafb;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 16px;
+  padding: 10px 12px;
+  text-align: left;
+}
+
+.choices__list--dropdown .choices__item {
+  padding: 10px 12px;
+  font-size: 15px;
+  color: #111827;
+  border-bottom: 1px solid #e5e7eb;
+  text-align: left;
+}
+
+.choices__list--dropdown .choices__item--selectable:hover {
+  background-color: #e0f2fe;
+  color: #0c4a6e;
+}
+
+/* Group labels */
+.choices__list--dropdown .choices__item--group {
+  font-weight: bold;
+  font-size: 14px;
+  padding: 8px 12px;
+  color: #6b7280;
+  background-color: #f3f4f6;
+  border-bottom: 1px solid #e5e7eb;
+  text-transform: uppercase;
+}
+
+/* Dropdown container styling */
+.choices__list--dropdown {
+  border-radius: 8px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+  background-color: white;
+  border: 1px solid #e5e7eb;
+  overflow: hidden;
+}
+
+/* Focus effect */
+.choices__inner.is-focused {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
+}
+
+  </style>
+<!-- ✅ Choices.js CSS -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/choices.js/public/assets/styles/choices.min.css" />
+<!-- ✅ Choices.js JS -->
+<script src="https://cdn.jsdelivr.net/npm/choices.js/public/assets/scripts/choices.min.js"></script>
+
+</head>
+<body>
+
+<div style="margin-bottom: 20px; text-align: right;">
+
+
+<a href="https://doitwithai.lemonsqueezy.com/buy/2b4072f5-5312-43ae-ab65-049c447c0859" target="_blank">
+  <button style="background-color: #6366f1; color: white; padding: 12px 24px; border: none; border-radius: 6px; cursor: pointer;">
+    🪙 Buy Tokens
+  </button>
+</a>
+</div>
+<div id="tokenBadge" style="margin-bottom: 16px; font-size: 16px; font-weight: bold; color: #374151; display: none;">
+  🔢 Tokens left: <span id="tokenCount">...</span>
+</div>
+<div id="visitorTokenUsage" style="margin-top: 20px; font-size: 14px; color: #6b7280;"></div>
+  <h2>🧠 Enter Topic or Text to Generate MCQs</h2>
+  <textarea id="textInput" placeholder="e.g. owls and eagles...">futbol kuralları</textarea><br>
+  <button onclick="generate()">✨ Generate MCQs</button>
+<!-- 🟨 Generate button sabit olarak alt tarafta -->
+<div style="text-align: center; margin-top: 20px;">
+  <div style="text-align:center; margin-top: 20px;">
+    <label><strong>🌍 Question Language:</strong></label>
+    <select id="languageSelect" style="padding: 8px; margin-left: 8px; border-radius: 6px;">
+      <option value="">🌐 Auto Detect</option>
+      <option value="İngilizce">English</option>
+      <option value="Türkçe">Türkçe</option>
+      <option value="İspanyolca">Español</option>
+      <option value="Fransızca">Français</option>
+      <option value="Almanca">Deutsch</option>
+      <option value="İtalyanca">Italiano</option>
+      <option value="Portekizce">Português</option>
+      <option value="Rusça">Русский</option>
+      <option value="Arapça">العربية</option>
+      <option value="Çince">中文</option>
+      <option value="Japonca">日本語</option>
+      <option value="Korece">한국어</option>
+      <option value="Flemenkçe">Nederlands</option>
+      <option value="Lehçe">Polski</option>
+      <option value="Hintçe">हिंदी</option>
+      <option value="Bengalce">বাংলা</option>
+      <option value="Vietnamca">Tiếng Việt</option>
+      <option value="Tayca">ภาษาไทย</option>
+      <option value="Romence">Română</option>
+      <option value="Ukraynaca">Українська</option>
+    </select>
+  </div>
+ <div style="margin-top: 14px;">
+  <label><strong>📊 Number of Questions:</strong></label>
+  <select id="questionCount" style="padding: 8px; margin-left: 8px; border-radius: 6px;">
+    <option value="5" selected>5</option>
+    <option value="10">10</option>
+    <option value="15">15</option>
+    <option value="20">20</option>
+  </select>
+</div>
+
+<div style="margin-top: 14px;">
+  <label><strong>🔢 Options per Question:</strong></label>
+  <select id="optionCount" style="padding: 8px; margin-left: 8px; border-radius: 6px;">
+    <option value="2">2</option>
+    <option value="3">3</option>
+    <option value="4" selected>4</option>
+    <option value="5">5</option>
+  </select>
+</div>
+
+  <div id="outputContainer"></div>
+
+
+<div style="margin-top: 30px; display: none;" id="saveSection">
+  <label for="titleSelect" style="
+  display: block;
+  font-size: 18px;
+  font-weight: 600;
+  color: #111827;
+  margin-bottom: 8px;
+  padding-left: 2px;
+">📝 Choose or create a title:</label>
+
+  <select id="titleSelect">
+    <option value="" disabled selected hidden>-- Select a title --</option>
+    <option value="__new__">➕ Create New Title</option>
+  </select>
+
+  <div id="newTitleInputContainer" style="margin-top: 10px; display: none;">
+    <input type="text" id="newTitleInput" placeholder="Enter new title" />
+  </div>
+
+  <div id="saveStatus" style="margin-top: 10px; color: #ef4444;"></div>
+  <button onclick="saveToDatabase()" style="margin-left: 10px; padding: 8px 8px;">💾 Save</button>
+</div>
+<hr>
+
+
+
+<script>
+const API_BASE = location.hostname === "localhost"
+  ? "http://localhost:4000"
+  : "https://doitwithai.onrender.com";
+
+async function generate() {
+  document.getElementById("printBtn").style.display = "none";
+document.getElementById("saveSection").style.display = "none";
+ const saveStatus = document.getElementById("saveStatus");
+if (saveStatus && saveStatus.textContent.trim() !== "") {
+  saveStatus.textContent = "";
+}
+
+  const text = document.getElementById('textInput').value.trim();
+  const output = document.getElementById('outputContainer');
+  output.innerHTML = "";
+
+  if (!text || text.length < 2) {
+    alert("⚠️ Please enter some text first.");
+    return;
+  }
+
+  const selectedLanguage = document.getElementById("languageSelect").value;
+  const selectedQuestionCount = parseInt(document.getElementById("questionCount").value);
+  const selectedOptionCount = parseInt(document.getElementById("optionCount").value);
+
+  const res = await fetch(`${API_BASE}/api/generate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      text,
+      userLanguage: selectedLanguage,
+      questionCount: selectedQuestionCount,
+      optionCount: selectedOptionCount
+    })
+  });
+
+ const data = await res.json();
+
+if (!res.ok || !data.questions || !Array.isArray(data.questions)) {
+  alert("❌ Failed to generate questions. Please try a longer or clearer topic.");
+  return;
+}
+
+const questions = data.questions;
+
+if (questions.length > 0) {
+  const success = await deductTokens(questions.length);
+  if (!success) return;
+  loadUserTokenBadge(); // refresh token count
+}
+
+questions.forEach((q, i) => {
+
+    const card = document.createElement("div");
+    card.className = "mcq-card";
+    output.appendChild(card);
+
+    let isEditing = false;
+
+    function render() {
+      card.innerHTML = `
+        <div style="display: flex; align-items: flex-start; gap: 10px;">
+          <input type="checkbox" class="print-checkbox" checked style="margin-top: 6px;">
+          <h3 style="margin: 0;">Q${i + 1}. <span class="qtext">${q.question}</span></h3>
+        </div>
+        <div class="edit-question"></div>
+        ${Object.entries(q.options).map(([key, val]) => `
+          <div class="option">
+            <strong>${key})</strong> <span class="opt-${key}">${val}</span>
+            <div class="edit-opt-${key}"></div>
+          </div>
+        `).join('')}
+        <div class="answer">✅ Answer: <span class="ans">${q.correct_answer}</span></div>
+        <div class="edit-answer"></div>
+        <div class="explanation">💡 <span class="expl">${q.explanation}</span></div>
+        <div class="edit-expl"></div>
+        <div style="margin-top:12px;">
+          <button onclick="toggleEdit_${i}()">✏️ ${isEditing ? 'Close Edit' : 'Edit'}</button>
+          <button onclick="reproduce_${i}()">♻️ Reproduce</button>
+        </div>
+      `;
+
+      if (isEditing) {
+        const qInput = document.createElement("input");
+        qInput.type = "text";
+        qInput.value = q.question;
+        qInput.style = "width:100%; margin-bottom:10px;";
+        qInput.oninput = (e) => {
+          q.question = e.target.value;
+          card.querySelector(".qtext").textContent = q.question;
+        };
+        card.querySelector(".edit-question").appendChild(qInput);
+
+        Object.entries(q.options).forEach(([key, val]) => {
+          const optInput = document.createElement("input");
+          optInput.type = "text";
+          optInput.value = val;
+          optInput.style = "width:100%; margin:4px 0 10px;";
+          optInput.oninput = (e) => {
+            q.options[key] = e.target.value;
+            card.querySelector(`.opt-${key}`).textContent = q.options[key];
+          };
+          card.querySelector(`.edit-opt-${key}`).appendChild(optInput);
+        });
+
+        const ansInput = document.createElement("input");
+        ansInput.type = "text";
+        ansInput.value = q.correct_answer;
+        ansInput.style = "width:100%; margin-bottom:10px;";
+        ansInput.oninput = (e) => {
+          q.correct_answer = e.target.value;
+          card.querySelector(".ans").textContent = q.correct_answer;
+        };
+        card.querySelector(".edit-answer").appendChild(ansInput);
+
+        const explInput = document.createElement("input");
+        explInput.type = "text";
+        explInput.value = q.explanation;
+        explInput.style = "width:100%; margin-bottom:10px;";
+        explInput.oninput = (e) => {
+          q.explanation = e.target.value;
+          card.querySelector(".expl").textContent = q.explanation;
+        };
+        card.querySelector(".edit-expl").appendChild(explInput);
+      }
+    }
+
+    window[`toggleEdit_${i}`] = () => {
+      isEditing = !isEditing;
+      render();
+    };
+
+    window[`reproduce_${i}`] = async () => {
+  const singleRes = await fetch(`${API_BASE}/api/generate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      text,
+      userLanguage: selectedLanguage,
+      questionCount: 1,
+      optionCount: selectedOptionCount
+    })
+  });
+  const newData = await singleRes.json();
+  
+  if (newData?.questions?.[0]) {
+    const success = await deductTokens(1);
+    if (!success) return;
+
+    Object.assign(q, newData.questions[0]);
+    isEditing = false;
+    render();
+    loadUserTokenBadge(); // 🔄 Update token display
+  } else {
+    alert("❌ Failed to reproduce new question.");
+  }
+};
+
+
+    render();
+  });
+
+  document.getElementById("printBtn").style.display = "inline-block";
+document.getElementById("saveSection").style.display = "block";
+}
+
+async function loadUserTokenBadge() {
+  try {
+    let tokens = 0;
+
+    if (!WPSettings?.isLoggedIn) {
+      const res = await fetch(`${API_BASE}/api/visitor-tokens`);
+      if (!res.ok) throw new Error("Visitor token fetch failed");
+      const data = await res.json();
+      tokens = data.tokens;
+    } else {
+      const res = await fetch('/wp-json/mcq/v1/tokens', {
+        headers: { 'X-WP-Nonce': WPSettings.nonce },
+        credentials: 'same-origin'
+      });
+      if (!res.ok) throw new Error("Member token fetch failed");
+      const data = await res.json();
+      tokens = data.tokens;
+    }
+
+    document.getElementById("tokenCount").textContent = tokens;
+    document.getElementById("tokenBadge").style.display = "block";
+
+    // Show no-credit badge if zero
+    document.getElementById("noTokensMessage").style.display = tokens === 0 ? "block" : "none";
+  } catch (err) {
+    console.error(err);
+    document.getElementById("tokenBadge").style.display = "none";
+    document.getElementById("noTokensMessage").style.display = "none";
+  }
+}
+
+async function deductTokens(count) {
+  try {
+    if (!WPSettings?.isLoggedIn) {
+      const res = await fetch(`${API_BASE}/api/visitor-tokens/deduct`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ count })
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        alert(`❌ Visitor token error: ${data.error}`);
+        return false;
+      }
+    } else {
+      const res = await fetch("/wp-json/mcq/v1/deduct-tokens", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-WP-Nonce": WPSettings.nonce
+        },
+        body: JSON.stringify({ count })
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        alert(`❌ Member token error: ${data.error}`);
+        return false;
+      }
+    }
+
+    return true;
+  } catch (err) {
+    console.error("❌ Token deduction failed:", err);
+    alert("❌ Token deduction request failed.");
+    return false;
+  }
+}
+
+window.addEventListener("DOMContentLoaded", loadUserTokenBadge);
+
+
+function printSelected() {
+  const allCards = document.querySelectorAll(".mcq-card");
+  const selected = Array.from(allCards).filter(card =>
+    card.querySelector(".print-checkbox")?.checked
+  );
+
+  if (selected.length === 0) {
+    alert("⚠️ Please select at least one question to print.");
+    return;
+  }
+
+  const printWindow = window.open("", "", "width=900,height=700");
+  printWindow.document.write(`
+    <html><head><title>Selected Questions</title>
+    <style>
+      body { font-family: Arial; padding: 20px; }
+      .question-block { margin-bottom: 20px; }
+      .answer-block {
+        page-break-before: always;
+        border-top: 2px dashed #ccc;
+        padding-top: 20px;
+      }
+      .option { margin-left: 20px; }
+      .answer { font-weight: bold; color: green; margin-top: 10px; }
+      .explanation { font-style: italic; margin-top: 5px; }
+    </style>
+    </head><body>
+
+ 
+
+    <h2>📝 Questions</h2>
+  `);
+
+  // ❓ Soru ve seçenekler
+  let qCounter = 1;
+  selected.forEach(card => {
+    const qText = card.querySelector(".qtext")?.textContent || "";
+    const options = Array.from(card.querySelectorAll(".option")).map(opt => opt.innerHTML).join("");
+
+    printWindow.document.write(`
+      <div class="question-block">
+        <h3>Q${qCounter}. ${qText}</h3>
+        ${options}
+      </div>
+    `);
+
+    card.dataset.printIndex = qCounter; // ✅ cevaplar için takip
+    qCounter++;
+  });
+
+  // ✅ Cevaplar yeni sayfada
+  printWindow.document.write(`<div class="answer-block"><h2>✅ Answers & Explanations</h2>`);
+
+  selected.forEach(card => {
+    const printIndex = card.dataset.printIndex;
+    const answer = card.querySelector(".ans")?.textContent || "";
+    const explanation = card.querySelector(".expl")?.textContent || "";
+
+    printWindow.document.write(`
+      <div class="answer-set">
+        <h4>Q${printIndex} Answer:</h4>
+        <div class="answer">✅ ${answer}</div>
+        <div class="explanation">💡 ${explanation}</div>
+      </div>
+      <hr>
+    `);
+  });
+
+  printWindow.document.write(`</div></body></html>`);
+  printWindow.document.close();
+  printWindow.focus();
+  printWindow.print();
+}
+
+
+
+</script>
+
+<button id="printBtn" onclick="printSelected()" style="display: none;">🖨️ Print Selected</button>
+
+</body>
+
+</html>
+********
+<div id="noTokensMessage" style="display: none; color: #b91c1c; margin-top: 10px; font-weight: bold;">
+  🔴 Your free credits are used up. 
+  <a href="https://doitwithai.org/purchase/" target="_blank" style="color: #2563eb; text-decoration: underline;">
+    Buy tokens here
+  </a>
+</div>
+<hr><hr>
+<h3 id="savedTitlesHeader" style="
+  display: block;
+  font-size: 22px;
+  font-weight: 700;
+  color: white;
+  background-color: #374151; /* Dark Gray (Tailwind's gray-700) */
+  padding: 12px 16px;
+  border-radius: 10px;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+  margin-top: 30px;
+  margin-bottom: 20px;
+  text-align: center;
+">📁 My Saved Titles</h3>
+
+
+<!-- 🔍 Search -->
+<div style="margin-bottom: 12px;">
+  <input id="titleSearch" type="text" placeholder="🔍 Search saved titles..." style="width:100%; padding: 10px; font-size: 16px; border-radius: 8px; border: 1px solid #ccc;">
+</div>
+
+<!-- 📄 Saved titles list -->
+
+
+<!-- ⏮️ Pagination Controls -->
+<div id="paginationControls" style="
+  margin-top: 16px;
+  text-align: center;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 0;
+">
+  <button id="prevPageBtn">⬅️ Previous</button>
+  <span id="pageButtonsContainer" style="display: flex; flex-wrap: wrap; gap: 6px;"></span>
+  <button id="nextPageBtn">Next ➡️</button>
+</div>
+
+<div id="savedTitlesContainer" style="margin-top: 30px; max-width: 800px; margin-left: auto; margin-right: auto;"></div>
+*********
+<script>
+
+document.addEventListener("DOMContentLoaded", () => {
+  const titleSelect = document.getElementById("titleSelect");
+  const newTitleContainer = document.getElementById("newTitleInputContainer");
+
+  if (titleSelect) {
+    titleSelect.addEventListener("change", () => {
+      const isNew = titleSelect.value === "__new__";
+      newTitleContainer.style.display = isNew ? "block" : "none";
+    });
+  }
+});
+async function saveToDatabase() {
+  const select = document.getElementById("titleSelect");
+  const newTitleInput = document.getElementById("newTitleInput");
+  const selectedValue = select.value;
+
+  let title = "";
+  let titleId = null;
+
+  if (selectedValue === "__new__") {
+    title = newTitleInput.value.trim();
+
+    if (!title) {
+      document.getElementById("saveStatus").textContent = "⚠️ Please enter a new title name.";
+      return;
+    }
+
+    // 🔍 Check for duplicate title names in existing options
+    const match = Array.from(select.options).find(opt =>
+      opt.value !== "__new__" &&
+      opt.textContent.replace(/^📘\s*/, "").trim().toLowerCase() === title.toLowerCase()
+    );
+
+    if (match) {
+      const confirmUse = confirm(`🔁 A title named "${title}" already exists.\nDo you want to add questions to it instead?`);
+      if (confirmUse) {
+        titleId = match.value;
+        title = ""; // prevent creating a duplicate
+      }
+    }
+  } else {
+    titleId = selectedValue; // This is the existing title's ID
+  }
+
+  const questions = document.querySelectorAll(".mcq-card");
+  const checkedQuestions = Array.from(questions).filter(card =>
+    card.querySelector(".print-checkbox")?.checked
+  );
+
+  if (!title && !titleId) {
+    document.getElementById("saveStatus").textContent = "⚠️ Please enter or select a title.";
+    return;
+  }
+
+  const payload = checkedQuestions.map(card => {
+    const question = card.querySelector(".qtext")?.textContent.trim() || "";
+    const options = {};
+    card.querySelectorAll(".option").forEach(opt => {
+      const label = opt.querySelector("strong").textContent.replace(")", "");
+      const value = opt.querySelector("span").textContent;
+      options[label] = value;
+    });
+
+    const answer = card.querySelector(".ans")?.textContent.trim() || "";
+    const explanation = card.querySelector(".expl")?.textContent.trim() || "";
+    const difficulty = card.dataset.difficulty || "medium";
+
+    return { question, options, answer, explanation, difficulty };
+  });
+
+  if (payload.length === 0) {
+    document.getElementById("saveStatus").textContent = "⚠️ Please select at least one question to save.";
+    return;
+  }
+
+  try {
+    const res = await fetch("/wp-json/mcq/v1/save-questions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-WP-Nonce": WPSettings.nonce
+      },
+      body: JSON.stringify({ title, titleId, questions: payload })
+    });
+
+    const result = await res.json();
+   if (res.ok) {
+  document.getElementById("saveStatus").textContent = "✅ Questions saved successfully.";
+  await loadSavedTitles();         // ✅ wait for data to refresh
+  renderPaginatedTitles();         // ✅ re-render updated view
+  loadTitleDropdown();             // optional if you need updated dropdown
+} else {
+      document.getElementById("saveStatus").textContent = "❌ Failed to save questions.";
+    }
+  } catch (err) {
+    document.getElementById("saveStatus").textContent = "❌ Error connecting to server.";
+    console.error(err);
+  }
+}
+
+
+
+let titleChoicesInstance = null;
+
+
+
+async function loadTitleDropdown() {
+  if (!WPSettings?.isLoggedIn) return;
+
+  try {
+    const res = await fetch("/wp-json/mcq/v1/titles", {
+      headers: { "X-WP-Nonce": WPSettings.nonce },
+      credentials: "same-origin",
+    });
+
+    if (!res.ok) throw new Error("Failed to load titles");
+
+    const titles = await res.json(); // [{id, title}]
+    const dropdown = document.getElementById("titleSelect");
+
+    // Destroy previous instance if exists
+    if (titleChoicesInstance) titleChoicesInstance.destroy();
+
+    // Clear old options
+    dropdown.innerHTML = "";
+
+    // Use optgroups for grouping
+    const newGroup = document.createElement("optgroup");
+    newGroup.label = "➕ New";
+
+    const newOption = document.createElement("option");
+    newOption.value = "__new__";
+    newOption.textContent = "🆕 Create New Title";
+    newGroup.appendChild(newOption);
+    dropdown.appendChild(newGroup);
+
+    // Optional: split titles into Recent + All (you can change this logic)
+    const recentTitles = titles.slice(0, 5);  // show first 5 as "recent"
+    const remainingTitles = titles.slice(5);
+
+    const recentGroup = document.createElement("optgroup");
+    recentGroup.label = "📌 Recent Titles";
+    recentTitles.forEach(({ id, title }) => {
+      const opt = document.createElement("option");
+      opt.value = id;
+      opt.textContent = `📘 ${title}`;
+      recentGroup.appendChild(opt);
+    });
+    dropdown.appendChild(recentGroup);
+
+    const allGroup = document.createElement("optgroup");
+    allGroup.label = "📚 All Titles";
+    remainingTitles.forEach(({ id, title }) => {
+      const opt = document.createElement("option");
+      opt.value = id;
+      opt.textContent = `📘 ${title}`;
+      allGroup.appendChild(opt);
+    });
+    dropdown.appendChild(allGroup);
+
+    // Initialize Choices.js
+    titleChoicesInstance = new Choices(dropdown, {
+      searchEnabled: true,
+      itemSelectText: '',
+      shouldSort: false,
+      placeholder: true,
+      placeholderValue: "Search or select a title"
+    });
+
+    // Show new title input if "__new__" is selected
+    dropdown.addEventListener("change", (e) => {
+      const newInputContainer = document.getElementById("newTitleInputContainer");
+      const showNewInput = e.target.value === "__new__";
+      newInputContainer.style.display = showNewInput ? "block" : "none";
+    });
+
+  } catch (err) {
+    console.error("❌ Error loading title dropdown:", err);
+  }
+}
+
+async function loadSavedTitles() {
+  if (!WPSettings?.isLoggedIn) return;
+
+  try {
+    const res = await fetch("/wp-json/mcq/v1/my-questions", {
+      headers: { "X-WP-Nonce": WPSettings.nonce },
+      credentials: "same-origin",
+    });
+
+    if (!res.ok) throw new Error("Failed to load saved questions");
+
+    const data = await res.json(); // Format: { titleId: { title, questions } }
+
+    savedQuestionsMap = {};
+    Object.entries(data).forEach(([titleId, entry]) => {
+      savedQuestionsMap[titleId] = entry;
+    });
+
+    filterTitlesBySearch();
+    renderPaginatedTitles();
+
+  } catch (err) {
+    console.error("❌ Error loading saved titles:", err);
+  }
+}
+
+function filterTitlesBySearch() {
+  const search = document.getElementById("titleSearch").value.trim().toLowerCase();
+
+  filteredTitleIds = Object.keys(savedQuestionsMap).filter(id => {
+    const title = savedQuestionsMap[id].title.toLowerCase();
+    return title.includes(search);
+  }).sort((a, b) => {
+    const dateA = savedQuestionsMap[a].questions[0]?.created_at || "";
+    const dateB = savedQuestionsMap[b].questions[0]?.created_at || "";
+    return new Date(dateB) - new Date(dateA); // newest first
+  });
+}
+
+function renderPaginatedTitles() {
+  const container = document.getElementById("savedTitlesContainer");
+  const pageIndicator = document.getElementById("pageIndicator");
+  const maxPage = Math.ceil(filteredTitleIds.length / titlesPerPage);
+
+  const start = (currentPage - 1) * titlesPerPage;
+  const end = start + titlesPerPage;
+  const pageIds = filteredTitleIds.slice(start, end);
+
+  container.innerHTML = "";
+
+  pageIds.forEach(id => {
+    const { title, questions } = savedQuestionsMap[id];
+
+    const div = document.createElement("div");
+    div.style = `
+      border: 1px solid #e5e7eb;
+      background: white;
+      padding: 16px 20px;
+      margin-bottom: 14px;
+      border-radius: 10px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+      cursor: pointer;
+      position: relative;
+      transition: transform 0.2s, box-shadow 0.2s;
+    `;
+
+    const lastSaved = formatDateTime(questions[0]?.created_at || new Date());
+
+    div.innerHTML = `
+      <h3 style="margin: 0 0 8px; color: #111827; font-size: 18px;">📘 ${title}</h3>
+      <p class="question-count" style="margin: 0; color: #6b7280;">
+  ${questions.length} saved question${questions.length > 1 ? 's' : ''}
+  <br>
+  🕒 Last saved: ${formatDateTime(questions[0]?.created_at)}
+</p>
+      <button class="delete-title-btn" data-id="${id}" style="
+        position: absolute;
+        top: 12px;
+        right: 14px;
+        background: #ef4444;
+        color: white;
+        border: none;
+        padding: 4px 8px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 14px;
+      ">🗑️</button>
+    `;
+
+    // Hover effect
+    div.addEventListener("mouseenter", () => {
+      div.style.transform = "scale(1.02)";
+      div.style.boxShadow = "0 4px 12px rgba(0,0,0,0.08)";
+    });
+    div.addEventListener("mouseleave", () => {
+      div.style.transform = "scale(1)";
+      div.style.boxShadow = "0 2px 6px rgba(0,0,0,0.05)";
+    });
+
+    // Title click
+    div.addEventListener("click", e => {
+      if (!e.target.classList.contains("delete-title-btn")) {
+        viewSavedQuestions(questions, id);
+      }
+    });
+
+    // Delete button handler
+    div.querySelector(".delete-title-btn").addEventListener("click", async (e) => {
+      e.stopPropagation(); // prevent view
+      const confirmDelete = confirm(`Are you sure you want to delete the title "${title}" and all its questions?`);
+      if (!confirmDelete) return;
+
+      const res = await fetch(`/wp-json/mcq/v1/delete-title/${id}`, {
+        method: "DELETE",
+        headers: { "X-WP-Nonce": WPSettings.nonce }
+      });
+
+      const result = await res.json();
+      if (result.success) {
+        await loadSavedTitles(); // refresh list
+        renderPaginatedTitles(); // re-render current page
+      } else {
+        alert("❌ Failed to delete title.");
+      }
+    });
+
+    container.appendChild(div);
+  });
+
+  renderPaginationControls();
+}
+
+
+
+function formatDateTime(isoString) {
+  if (!isoString) return "N/A";
+  const d = new Date(isoString);
+  return d.toLocaleString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit"
+  });
+}
+
+
+
+function viewSavedQuestions(questions, titleId) {
+
+  if (!Array.isArray(questions)) return console.error("❌ Invalid questions data:", questions);
+
+  const modal = document.getElementById("savedQuestionsModal");
+  const content = document.getElementById("savedModalContent");
+
+  // Store a local copy so we can update it
+  let currentQuestions = [...questions];
+
+  function renderList() {
+    content.innerHTML = currentQuestions.map((q, i) => {
+      const opts = typeof q.options === "string" ? JSON.parse(q.options) : q.options;
+      return `
+        <div class="mcq-card" style="margin-bottom: 20px; position: relative;">
+          <button class="delete-question-btn" data-id="${q.id}" style="position:absolute; top:8px; right:8px; background:#ef4444; color:white; border:none; border-radius:4px; padding:4px 8px; cursor:pointer;">❌ Delete</button>
+          <input type="checkbox" class="saved-print-checkbox" checked style="margin-bottom: 6px;" />
+          <h3>Q${i + 1}. ${q.question}</h3>
+          ${Object.entries(opts).map(([key, val]) => `
+            <div class="option"><strong>${key})</strong> ${val}</div>
+          `).join('')}
+          <div class="answer">✅ Answer: ${q.answer}</div>
+          <div class="explanation">💡 ${q.explanation}</div>
+        </div>
+      `;
+    }).join("");
+
+    // Bind delete buttons again after rendering
+    content.querySelectorAll(".delete-question-btn").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const id = btn.dataset.id;
+        if (!confirm("Are you sure you want to delete this question?")) return;
+
+        const res = await fetch(`/wp-json/mcq/v1/delete-question/${id}`, {
+          method: "DELETE",
+          headers: { "X-WP-Nonce": WPSettings.nonce }
+        });
+
+        const result = await res.json();
+        if (result.success) {
+          currentQuestions = currentQuestions.filter(q => q.id != id);
+savedQuestionsMap[titleId].questions = currentQuestions;
+renderList();
+renderPaginatedTitles(); // ✅ also re-render titles view
+        } else {
+          alert("❌ Failed to delete question.");
+        }
+      });
+    });
+  }
+
+  renderList();
+  modal.style.display = "flex";
+}
+
+
+
+
+function printSelectedSaved() {
+  const allCards = document.querySelectorAll("#savedModalContent .mcq-card");
+  const selected = Array.from(allCards).filter(card =>
+    card.querySelector(".saved-print-checkbox")?.checked
+  );
+
+  if (selected.length === 0) {
+    alert("⚠️ Please select at least one question to print.");
+    return;
+  }
+
+  const printWindow = window.open("", "", "width=900,height=700");
+  printWindow.document.write(`
+    <html><head><title>Saved Questions</title>
+    <style>
+      body { font-family: Arial; padding: 20px; }
+      .question-block { margin-bottom: 20px; }
+      .answer-block {
+        page-break-before: always;
+        border-top: 2px dashed #ccc;
+        padding-top: 20px;
+      }
+      .option { margin-left: 20px; }
+      .answer { font-weight: bold; color: green; margin-top: 10px; }
+      .explanation { font-style: italic; margin-top: 5px; }
+    </style>
+    </head><body>
+
+    <h2>📝 Questions</h2>
+  `);
+
+  let qCounter = 1;
+  selected.forEach(card => {
+    const qText = card.querySelector("h3")?.textContent || "";
+    const options = Array.from(card.querySelectorAll(".option")).map(opt => opt.outerHTML).join("");
+
+    printWindow.document.write(`
+      <div class="question-block">
+        <h3>${qText}</h3>
+        ${options}
+      </div>
+    `);
+
+    card.dataset.printIndex = qCounter;
+    qCounter++;
+  });
+
+  printWindow.document.write(`<div class="answer-block"><h2>✅ Answers & Explanations</h2>`);
+
+  selected.forEach(card => {
+    const printIndex = card.dataset.printIndex;
+    const answer = card.querySelector(".answer")?.innerHTML || "";
+    const explanation = card.querySelector(".explanation")?.innerHTML || "";
+
+    printWindow.document.write(`
+      <div class="answer-set">
+        <h4>${printIndex}:</h4>
+        <div class="answer">${answer}</div>
+        <div class="explanation">${explanation}</div>
+      </div><hr>
+    `);
+  });
+
+  printWindow.document.write(`</div></body></html>`);
+  printWindow.document.close();
+  printWindow.focus();
+  printWindow.print();
+}
+
+
+function exportSelectedSaved() {
+  const allCards = document.querySelectorAll("#savedModalContent .mcq-card");
+  const selected = Array.from(allCards).filter(card =>
+    card.querySelector(".saved-print-checkbox")?.checked
+  );
+
+  if (selected.length === 0) {
+    alert("⚠️ Please select at least one question to export.");
+    return;
+  }
+
+  let questionSection = "";
+  let answerSection = "\n--- Answers & Explanations ---\n\n";
+
+  selected.forEach((card, i) => {
+    const qNum = i + 1;
+    const question = card.querySelector("h3")?.textContent.replace(/^Q\d+\.\s*/, "") || "";
+    const options = Array.from(card.querySelectorAll(".option")).map(opt => opt.textContent).join("\n");
+    const answer = card.querySelector(".answer")?.textContent.replace(/^✅ Answer:\s*/, "") || "";
+    const explanation = card.querySelector(".explanation")?.textContent.replace(/^💡\s*/, "") || "";
+
+    questionSection += `Q${qNum}: ${question}\n${options}\n\n`;
+    answerSection += `Q${qNum}:\nAnswer: ${answer}\nExplanation: ${explanation}\n\n`;
+  });
+
+  const text = questionSection + answerSection;
+
+  const blob = new Blob([text], { type: "text/plain" });
+  const url = URL.createObjectURL(blob);
+
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "saved_mcq_questions.txt";
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+
+
+function closeSavedModal() {
+  document.getElementById("savedQuestionsModal").style.display = "none";
+}
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape") closeSavedModal();
+});
+
+
+// Make sure both badges and titles load
+window.addEventListener("DOMContentLoaded", () => {
+  loadUserTokenBadge();
+  loadSavedTitles();
+loadTitleDropdown(); // ✅ Add this
+});
+let savedQuestionsMap = {};
+
+
+let currentPage = 1;
+const titlesPerPage = 10;
+let filteredTitleIds = [];
+
+document.getElementById("titleSearch").addEventListener("input", () => {
+  currentPage = 1;
+  filterTitlesBySearch();
+  renderPaginatedTitles();
+});
+
+document.getElementById("prevPageBtn").addEventListener("click", () => {
+  if (currentPage > 1) {
+    currentPage--;
+    renderPaginatedTitles();
+  }
+});
+
+document.getElementById("nextPageBtn").addEventListener("click", () => {
+  const maxPage = Math.ceil(filteredTitleIds.length / titlesPerPage);
+  if (currentPage < maxPage) {
+    currentPage++;
+    renderPaginatedTitles();
+  }
+});
+
+
+
+document.addEventListener("DOMContentLoaded", () => {
+  loadUserTokenBadge();
+  loadSavedTitles();
+
+  // ✅ Attach modal button click handlers
+  document.getElementById("exportModalBtn")?.addEventListener("click", exportSelectedSaved);
+  document.getElementById("printModalBtn")?.addEventListener("click", printSelectedSaved);
+});
+
+document.addEventListener("DOMContentLoaded", () => {
+  loadUserTokenBadge();
+  loadSavedTitles();
+  loadTitleDropdown();
+
+  // ✅ Attach modal button click handlers
+  document.getElementById("exportModalBtn")?.addEventListener("click", exportSelectedSaved);
+  document.getElementById("printModalBtn")?.addEventListener("click", printSelectedSaved);
+
+  // ✅ Fix: Move titleSelect change handler here
+  const titleSelect = document.getElementById("titleSelect");
+  const newInputContainer = document.getElementById("newTitleInputContainer");
+
+  if (titleSelect && newInputContainer) {
+    titleSelect.addEventListener("change", (e) => {
+      const showNewInput = e.target.value === "__new__";
+      newInputContainer.style.display = showNewInput ? "block" : "none";
+    });
+  }
+});
+
+document.getElementById("prevPageBtn").addEventListener("click", () => {
+  if (currentPage > 1) {
+    currentPage--;
+    renderPaginatedTitles();
+    scrollToSavedTitles();
+  }
+});
+
+document.getElementById("nextPageBtn").addEventListener("click", () => {
+  const maxPage = Math.ceil(filteredTitleIds.length / titlesPerPage);
+  if (currentPage < maxPage) {
+    currentPage++;
+    renderPaginatedTitles();
+    scrollToSavedTitles();
+  }
+});
+
+function scrollToSavedTitles() {
+  const header = document.getElementById("savedTitlesHeader");
+  if (!header) return;
+
+  setTimeout(() => {
+    const yOffset = -80; // Adjust for any sticky navbar height
+    const y = header.offsetTop + yOffset;
+    window.scrollTo({ top: y, behavior: "smooth" });
+  }, 100); // Delay ensures rendering is done
+}
+
+
+function renderPaginationControls() {
+  const pageContainer = document.getElementById("pageButtonsContainer");
+  const maxPage = Math.ceil(filteredTitleIds.length / titlesPerPage);
+  pageContainer.innerHTML = "";
+
+  function createPageButton(label, page, isActive = false) {
+    const btn = document.createElement("button");
+    btn.textContent = label;
+    btn.disabled = label === "...";
+
+    btn.style.cssText = `
+      margin: 2px;
+      padding: 6px 12px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      background-color: ${isActive ? "#3b82f6" : "#fff"};
+      color: ${isActive ? "white" : "#111"};
+      cursor: ${label === "..." ? "default" : "pointer"};
+      font-weight: ${isActive ? "bold" : "normal"};
+      transition: background-color 0.3s, color 0.3s, box-shadow 0.2s;
+    `;
+
+    if (!isActive && label !== "...") {
+      btn.addEventListener("mouseenter", () => {
+        btn.style.backgroundColor = "#e0f2fe";  // light blue
+        btn.style.boxShadow = "0 2px 6px rgba(0,0,0,0.1)";
+      });
+      btn.addEventListener("mouseleave", () => {
+        btn.style.backgroundColor = "#fff";
+        btn.style.boxShadow = "none";
+      });
+    }
+
+    if (label !== "...") {
+      btn.addEventListener("click", () => {
+        currentPage = page;
+        renderPaginatedTitles();
+        scrollToSavedTitles();
+      });
+    }
+
+    pageContainer.appendChild(btn);
+  }
+
+  const range = [];
+
+  if (maxPage <= 7) {
+    for (let i = 1; i <= maxPage; i++) range.push(i);
+  } else {
+    range.push(1);
+    if (currentPage > 4) range.push("...");
+    const start = Math.max(2, currentPage - 1);
+    const end = Math.min(maxPage - 1, currentPage + 1);
+    for (let i = start; i <= end; i++) range.push(i);
+    if (currentPage < maxPage - 3) range.push("...");
+    range.push(maxPage);
+  }
+
+  range.forEach(i => {
+    if (i === "...") {
+      createPageButton("...", null);
+    } else {
+      createPageButton(i, i, i === currentPage);
+    }
+  });
+}
+
+
+</script>
+
+<!-- Saved Questions Modal -->
+<div id="savedQuestionsModal" style="
+  display: none;
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  background: rgba(0,0,0,0.6);
+  z-index: 9999;
+  justify-content: center;
+  align-items: center;
+">
+  <div style="
+    background: white;
+    max-height: 85%;
+    width: 90%;
+    max-width: 800px;
+    overflow: hidden;
+    padding: 20px;
+    border-radius: 10px;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+  ">
+
+    <!-- ❌ Close Button -->
+    <div style="position: sticky; top: 0; background: white; z-index: 10; text-align: right; padding-bottom: 10px;">
+      <button onclick="closeSavedModal()" style="
+        background: #ef4444;
+        color: white;
+        border: none;
+        padding: 6px 12px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-weight: bold;
+      ">❌ Close</button>
+    </div>
+
+    <!-- 📄 Saved Content Scroll Area -->
+    <div id="savedModalContent" style="
+      overflow-y: auto;
+      padding-right: 5px;
+      flex: 1;
+      border-top: 1px solid #eee;
+      border-bottom: 1px solid #eee;
+      margin-bottom: 10px;
+    "></div>
+
+    <!-- 📁 Export / 🖨️ Print Buttons -->
+    <div style="
+      padding-top: 10px;
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+    ">
+      <button id="exportModalBtn" style="background:#3b82f6; color:white; padding:8px 16px; border:none; border-radius:6px;">📁 Export TXT</button>
+      <button id="printModalBtn" style="background:#10b981; color:white; padding:8px 8px; border:none; border-radius:6px;">🖨️ Print Selected</button>
+    </div>
+
+  </div>
+</div>

@@ -1,179 +1,142 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { franc } from 'franc';
 
-const languageMap = {
-  "eng": "İngilizce", "tur": "Türkçe", "spa": "İspanyolca", "fra": "Fransızca",
-  "deu": "Almanca", "ita": "İtalyanca", "por": "Portekizce", "rus": "Rusça",
-  "jpn": "Japonca", "kor": "Korece", "nld": "Flemenkçe", "pol": "Lehçe",
-  "ara": "Arapça", "hin": "Hintçe", "ben": "Bengalce", "zho": "Çince",
-  "vie": "Vietnamca", "tha": "Tayca", "ron": "Romence", "ukr": "Ukraynaca"
-};
+export async function generateMCQ(text, userLanguage = "", questionCount = 5, optionCount = 4, forceEducational = false) {
+  const languageMap = {
+    "eng": "İngilizce", "tur": "Türkçe", "spa": "İspanyolca", "fra": "Fransızca",
+    "deu": "Almanca", "ita": "İtalyanca", "por": "Portekizce", "rus": "Rusça",
+    "jpn": "Japonca", "kor": "Korece", "nld": "Flemenkçe", "pol": "Lehçe",
+    "ara": "Arapça", "hin": "Hintçe", "ben": "Bengalce", "zho": "Çince",
+    "vie": "Vietnamca", "tha": "Tayca", "ron": "Romence", "ukr": "Ukraynaca"
+  };
 
-const isoMap = {
-  "İngilizce": "English", "Türkçe": "Turkish", "Arapça": "Arabic", "Fransızca": "French",
-  "İspanyolca": "Spanish", "Almanca": "German", "İtalyanca": "Italian", "Portekizce": "Portuguese",
-  "Rusça": "Russian", "Çince": "Chinese", "Japonca": "Japanese", "Korece": "Korean",
-  "Flemenkçe": "Dutch", "Lehçe": "Polish", "Hintçe": "Hindi", "Bengalce": "Bengali",
-  "Vietnamca": "Vietnamese", "Tayca": "Thai", "Romence": "Romanian", "Ukraynaca": "Ukrainian"
-};
+  const isoMap = {
+    "İngilizce": "English", "Türkçe": "Turkish", "Arapça": "Arabic", "Fransızca": "French",
+    "İspanyolca": "Spanish", "Almanca": "German", "İtalyanca": "Italian", "Portekizce": "Portuguese",
+    "Rusça": "Russian", "Çince": "Chinese", "Japonca": "Japanese", "Korece": "Korean",
+    "Flemenkçe": "Dutch", "Lehçe": "Polish", "Hintçe": "Hindi", "Bengalce": "Bengali",
+    "Vietnamca": "Vietnamese", "Tayca": "Thai", "Romence": "Romanian", "Ukraynaca": "Ukrainian"
+  };
 
-function extractJsonArray(text) {
-  const start = text.indexOf("[");
-  const end = text.lastIndexOf("]");
-  if (start === -1 || end === -1 || end <= start) return null;
-
-  const jsonPart = text.slice(start, end + 1).trim();
-  try {
-    return JSON.parse(jsonPart);
-  } catch (err) {
-    console.warn("⚠️ JSON.extractJsonArray failed:", err.message);
-    return null;
-  }
-}
-
-export async function generateQuestions(text, type = "mcq", userLanguage = "", questionCount = 5, optionCount = 4) {
   const langCode = franc(text || "");
   const questionLanguage = userLanguage?.trim() || languageMap[langCode] || "İngilizce";
   const promptLang = isoMap[questionLanguage] || "English";
 
-  const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+  console.log("🗣️ Language selected:", questionLanguage);
+  console.log("🌐 Prompt language sent to Gemini:", promptLang);
 
-  const prompt = generatePrompt(text, type, questionCount, optionCount, promptLang);
-  let finalQuestions = [];
-
-  for (let i = 0; i < 3 && finalQuestions.length < questionCount; i++) {
-    try {
-      const result = await model.generateContent(prompt);
-      const rawText = await result.response.text();
-
-      console.log("📦 Gemini Raw Response:\n", rawText);
-      const cleaned = rawText
-        .replace(/^\s*```(?:json)?\s*/i, '')
-        .replace(/\s*```$/, '')
-        .trim();
-
-      console.log("🧹 Cleaned JSON Candidate:\n", cleaned);
-
-      const parsed = extractJsonArray(cleaned);
-      if (parsed && Array.isArray(parsed)) {
-        const valid = parsed.filter(q =>
-          q?.question || q?.sentence || q?.instruction || q?.keyword
-        );
-        finalQuestions.push(...valid);
-      } else {
-        console.warn("⚠️ Could not extract valid JSON array.");
-      }
-    } catch (apiErr) {
-      console.warn("⚠️ Gemini API error:", apiErr.message);
-    }
-  }
-
-  shuffleArray(finalQuestions);
-  return finalQuestions.slice(0, questionCount);
-}
-
-function generatePrompt(text, type, questionCount, optionCount, promptLang) {
   const letters = Array.from({ length: optionCount }, (_, i) => String.fromCharCode(65 + i));
-  const optionsObject = letters.map(l => `"${l}": "..."`).join(", ");
   const letterList = letters.join(", ");
+  const optionsObject = letters.map(l => `"${l}": "..."`).join(", ");
 
-  const commonHeader = `You are an expert AI teaching assistant.
-Generate exactly ${questionCount} well-structured questions in ${promptLang}, based on the topic below. Only return valid JSON, no extra text or commentary.`;
+  const prompt = (subtext) => {
+    let basePrompt = `
+You are an AI teacher assistant.
 
-  const topicBlock = `\n\nTopic:\n"""\n${text}\n"""`;
+🎯 Your job is to generate exactly ${questionCount} unique multiple-choice questions (MCQs) based on the topic provided.
 
-  switch (type) {
-    case "mcq":
-      return `
-${commonHeader}
+Your answers must be based strictly on accurate, official, and educational sources.
 
-Each question must include exactly ${optionCount} choices labeled ${letterList}, with only one correct answer.
-Format:
+Each question MUST include exactly ${optionCount} answer choices labeled ${letterList}. Do NOT include extra or missing options.
+
+Use this strict JSON format:
+
 [
   {
     "question": "...",
     "options": { ${optionsObject} },
     "correct_answer": "${letters[0]}",
     "explanation": "..."
-  }
-]${topicBlock}`;
-
-    case "fill":
-  return `
-${commonHeader}
-
-Each item must include:
-- a full sentence with a blank (____),
-- the correct answer,
-- an explanation.
-
-Format:
-[
-  {
-    "sentence": "Standart bir futbol maçı _____ eşit yarıdan oluşur.",
-    "correct_answer": "iki",
-    "explanation": "Futbol maçları genellikle iki eşit yarıdan oluşur."
-  }
-]${topicBlock}`;
-
-    case "reorder":
-      return `
-${commonHeader}
-
-Each item should have an instruction, a shuffled list of steps, the correct order (as index array), and an explanation.
-Format:
-[
-  {
-    "instruction": "Put the steps of the water cycle in order.",
-    "steps": ["Evaporation", "Condensation", "Precipitation", "Collection"],
-    "correct_order": [0, 1, 2, 3],
-    "explanation": "The water cycle begins with evaporation..."
-  }
-]${topicBlock}`;
-
-    case "matching":
-      return `
-${commonHeader}
-
-Each item must include a matching question with two lists: term_set and definition_set. Also include correct_pairs as index pairs and explanation.
-Format:
-[
-  {
-    "question": "Match the following terms with their definitions.",
-    "term_set": ["Photosynthesis", "Evaporation"],
-    "definition_set": ["Process by which plants make food", "Change of water into vapor"],
-    "correct_pairs": [[0,0], [1,1]],
-    "explanation": "Each term matches its definition."
-  }
-]${topicBlock}`;
-
-case "keywords":
-  return `
-${commonHeader}
-
-Your task is to extract and define exactly ${questionCount} important technical or conceptual keywords from the topic.
-
-Return only a valid JSON array of objects in the following format:
-[
-  {
-    "keyword": "Term",
-    "definition": "A short, clear explanation of the term."
-  }
+  },
+  ...
 ]
 
-⚠️ Do not include explanations, titles, commentary, or formatting — only a JSON array. Do not return full questions or essay prompts.
-${topicBlock}`;
+🟢 Write everything in ${promptLang}.
+❗ Do NOT use any English unless ${promptLang} is English.
+🚫 Avoid repeating questions or similar phrasing from previous attempts.
 
+// YENİ EKLEMELER BURADAN BAŞLIYOR
 
-    default:
-      throw new Error("Unsupported question type");
+✅ **Sorularınızı yalnızca sağlanan 'Topic' metnindeki bilgileri kullanarak oluşturun.**
+❌ **Metinde bulunmayan, varsayımsal veya yanıltıcı bilgiler içeren sorular sormayın.**
+🤔 **Her sorunun net, anlaşılır ve tek bir doğru cevabı olduğundan emin olun.**
+🧐 **Çok genel veya çok spesifik (önemsiz) bilgilerden soru oluşturmaktan kaçının.**
+💡 **Anahtar kavramları, tanımları, önemli olayları veya ilişkileri hedefleyen sorular sorun.**
+🔄 **Seçeneklerin (options) her birinin anlamlı ve sorunun bağlamına uygun olduğundan emin olun. Yanlış seçenekler mantıklı, ancak yine de yanlış olmalıdır.**
+🚫 **"Yukarıdakilerin hepsi" veya "Hiçbiri" gibi seçenekler kullanmaktan kaçının.**
+`;
+
+    if (forceEducational) {
+        basePrompt += `
+❗ Your answers must be based strictly on accurate, official, and educational sources.
+❌ Do NOT invent terms or use colloquial expressions (e.g., "royal return", "king’s journey").
+✅ Focus only on real, validated knowledge (e.g., chess rules from FIDE, mathematical laws, scientific facts).
+`;
+    }
+
+    return `${basePrompt}
+
+Topic:
+"""
+${subtext}
+"""`;
+};
+
+  const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+
+  let finalQuestions = [];
+
+  const isValid = (q) => {
+    const optionValues = Object.values(q.options || {});
+    return (
+      q.question && typeof q.question === "string" && q.question.length > 10 &&
+      q.options && typeof q.options === "object" &&
+      letters.every(k => q.options[k] && q.options[k].trim().length > 0) &&
+      new Set(optionValues).size === optionValues.length &&
+      letters.includes(q.correct_answer) &&
+      q.explanation && q.explanation.length > 5
+    );
+  };
+
+  for (let i = 0; i < 3 && finalQuestions.length < questionCount; i++) {
+    try {
+      const result = await model.generateContent(prompt(text));
+      let raw = await result.response.text();
+      raw = raw.replace(/^\s*```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
+      const match = raw.match(/\[\s*{[\s\S]*?}\s*\]/);
+      if (!match) throw new Error("Invalid response format");
+
+      const mcqs = JSON.parse(match[0]);
+      finalQuestions.push(...mcqs.filter(isValid));
+    } catch (err) {
+      console.error("⚠️ Retry failed:", err.message);
+    }
   }
-}
 
-function shuffleArray(arr) {
-  for (let i = arr.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [arr[i], arr[j]] = [arr[j], arr[i]];
+  while (finalQuestions.length < questionCount) {
+    console.warn("♻️ Ek üretim başlatılıyor. Kalan:", questionCount - finalQuestions.length);
+    try {
+      const result = await model.generateContent(prompt(text));
+      let raw = await result.response.text();
+      raw = raw.replace(/^\s*```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
+      const match = raw.match(/\[\s*{[\s\S]*?}\s*\]/);
+      if (!match) break;
+
+      const mcqs = JSON.parse(match[0]);
+      finalQuestions.push(...mcqs.filter(isValid));
+    } catch (err) {
+      break;
+    }
+  }
+
+  shuffleArray(finalQuestions);
+  return finalQuestions.slice(0, questionCount);
+
+  function shuffleArray(array) {
+    for (let i = array.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [array[i], array[j]] = [array[j], array[i]];
+    }
   }
 }

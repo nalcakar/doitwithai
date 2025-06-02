@@ -1,0 +1,330 @@
+// ✅ LemonSqueezy Webhook Handler
+// ✅ Register REST API routes for MCQ
+add_action('rest_api_init', function () {
+
+  // 🔹 Token balance fetch
+  register_rest_route('mcq/v1', '/tokens', [
+    'methods'  => 'GET',
+    'callback' => 'get_user_token_count',
+    'permission_callback' => '__return_true',
+  ]);
+
+  // 🔹 LemonSqueezy webhook listener
+  register_rest_route('mcq/v1', '/webhook', [
+    'methods'  => 'POST',
+    'callback' => 'handle_lemon_webhook',
+    'permission_callback' => '__return_true',
+  ]);
+
+  // 🔹 Token deduction for logged-in users
+  register_rest_route('mcq/v1', '/deduct-tokens', [
+    'methods'  => 'POST',
+    'callback' => 'deduct_tokens_after_generation',
+    'permission_callback' => function () {
+      return is_user_logged_in();
+    },
+  ]);
+});
+
+function get_user_token_count() {
+  if (is_user_logged_in()) {
+    $user_id = get_current_user_id();
+    $tokens  = (int) get_user_meta($user_id, 'mcq_token_balance', true);
+  } else {
+    $tokens = 0;
+  }
+
+  return new WP_REST_Response(['tokens' => $tokens], 200);
+}
+
+function handle_lemon_webhook(WP_REST_Request $request) {
+  $data = $request->get_json_params();
+  $event    = $data['meta']['event_name'] ?? '';
+  $email    = $data['data']['attributes']['user_email'] ?? '';
+  $order_id = $data['data']['id'] ?? '';
+
+  if (!$email || $event !== 'order_created') {
+    return new WP_REST_Response(['error' => 'Invalid or missing email or wrong event'], 400);
+  }
+
+  // 🔒 Prevent duplicate token grants
+  if (get_option("mcq_order_processed_$order_id")) {
+    return new WP_REST_Response(['status' => 'duplicate'], 200);
+  }
+
+  $user = get_user_by('email', $email);
+
+  if (!$user) {
+    $random_pass = wp_generate_password();
+    $user_id = wp_create_user($email, $random_pass, $email);
+
+    if (!is_wp_error($user_id)) {
+      wp_mail($email, 'Your account on DoItWithAI',
+        "Thanks for your purchase!\n\nLogin here: https://doitwithai.org/wp-login.php\nEmail: $email\nPassword: $random_pass"
+      );
+
+      update_user_meta($user_id, 'mcq_token_balance', 100);
+      update_option("mcq_order_processed_$order_id", true);
+
+      return new WP_REST_Response([
+        'success' => true,
+        'tokens'  => 100,
+        'user_id' => $user_id,
+        'created' => true,
+      ], 200);
+    } else {
+      return new WP_REST_Response(['error' => 'User creation failed'], 500);
+    }
+  } else {
+    $user_id = $user->ID;
+    $current = (int) get_user_meta($user_id, 'mcq_token_balance', true);
+    $new     = $current + 100;
+
+    update_user_meta($user_id, 'mcq_token_balance', $new);
+    update_option("mcq_order_processed_$order_id", true);
+
+    return new WP_REST_Response([
+      'success' => true,
+      'tokens'  => $new,
+      'user_id' => $user_id,
+      'created' => false,
+    ], 200);
+  }
+}
+
+function deduct_tokens_after_generation(WP_REST_Request $request) {
+  $user_id     = get_current_user_id();
+  $used_tokens = (int) $request->get_param('count');
+  $current     = (int) get_user_meta($user_id, 'mcq_token_balance', true);
+
+  if ($used_tokens <= 0 || $current < $used_tokens) {
+    return new WP_REST_Response(['error' => 'Insufficient tokens'], 403);
+  }
+
+  update_user_meta($user_id, 'mcq_token_balance', $current - $used_tokens);
+  return new WP_REST_Response([
+    'success'   => true,
+    'remaining' => $current - $used_tokens,
+  ], 200);
+}
+
+// ✅ Embed MCQ Generator via Shortcode
+function mcq_generator_shortcode() {
+  ob_start();
+  ?>
+  <div style="margin-bottom: 20px; text-align: right;">
+    <!-- Your frontend HTML will be inserted here via shortcode -->
+  </div>
+  <?php
+  return ob_get_clean();
+}
+add_shortcode('mcq_generator', 'mcq_generator_shortcode');
+
+// ✅ Enqueue and Localize JS
+add_action('wp_enqueue_scripts', function () {
+  if (is_singular()) {
+    // Optional: enqueue jQuery if needed
+    wp_enqueue_script('jquery');
+
+    // Localize WPSettings for inline usage
+    wp_add_inline_script('jquery', 'window.WPSettings = ' . json_encode([
+      'nonce' => wp_create_nonce('wp_rest'),
+      'isLoggedIn' => is_user_logged_in(),
+    ]) . ';');
+  }
+});
+
+// ✅ Register REST API Routes
+add_action('rest_api_init', function () {
+  // GET: Fetch all questions grouped by title
+  register_rest_route('mcq/v1', '/my-questions', [
+    'methods' => 'GET',
+    'permission_callback' => function () {
+      return is_user_logged_in();
+    },
+    'callback' => 'mcq_get_my_questions'
+  ]);
+
+  // POST: Save questions under a title
+  register_rest_route('mcq/v1', '/save-questions', [
+    'methods' => 'POST',
+    'permission_callback' => function () {
+      return is_user_logged_in();
+    },
+    'callback' => 'mcq_save_questions'
+  ]);
+
+  // ✅ NEW: GET - Fetch all title names & IDs
+  register_rest_route('mcq/v1', '/titles', [
+    'methods' => 'GET',
+    'permission_callback' => function () {
+      return is_user_logged_in();
+    },
+    'callback' => 'mcq_get_titles'
+  ]);
+	 // ✅ DELETE Question
+  register_rest_route('mcq/v1', '/delete-question/(?P<id>\d+)', [
+    'methods' => 'DELETE',
+    'permission_callback' => function () {
+      return is_user_logged_in();
+    },
+    'callback' => function ($request) {
+      global $wpdb;
+      $user_id = get_current_user_id();
+      $question_id = (int) $request['id'];
+
+      $deleted = $wpdb->delete("{$wpdb->prefix}mcq_questions", [
+        'id' => $question_id,
+        'user_id' => $user_id
+      ]);
+
+      return rest_ensure_response(['success' => (bool)$deleted]);
+    }
+  ]);
+
+  // ✅ DELETE Title + questions under it
+  register_rest_route('mcq/v1', '/delete-title/(?P<id>\d+)', [
+    'methods' => 'DELETE',
+    'permission_callback' => function () {
+      return is_user_logged_in();
+    },
+    'callback' => function ($request) {
+      global $wpdb;
+      $user_id = get_current_user_id();
+      $title_id = (int) $request['id'];
+
+      $owned = $wpdb->get_var($wpdb->prepare(
+        "SELECT COUNT(*) FROM {$wpdb->prefix}mcq_titles WHERE id = %d AND user_id = %d",
+        $title_id, $user_id
+      ));
+
+      if (!$owned) return new WP_REST_Response(['error' => 'Unauthorized'], 403);
+
+      $wpdb->delete("{$wpdb->prefix}mcq_questions", ['title_id' => $title_id]);
+      $wpdb->delete("{$wpdb->prefix}mcq_titles", ['id' => $title_id]);
+
+      return rest_ensure_response(['success' => true]);
+    }
+  ]);
+
+});
+
+// ✅ GET Handler: Return grouped questions for current user
+function mcq_get_my_questions() {
+  global $wpdb;
+  $user_id = get_current_user_id();
+
+  $results = $wpdb->get_results(
+    $wpdb->prepare("
+      SELECT q.id, q.title_id, t.title, q.question, q.options, q.answer, q.explanation, q.difficulty, q.created_at
+      FROM {$wpdb->prefix}mcq_questions q
+      JOIN {$wpdb->prefix}mcq_titles t ON q.title_id = t.id
+      WHERE q.user_id = %d
+      ORDER BY q.created_at DESC
+    ", $user_id),
+    ARRAY_A
+  );
+
+  $grouped = [];
+  foreach ($results as $row) {
+    $title_id = $row['title_id'];
+    $title_name = $row['title'];
+
+    if (!isset($grouped[$title_id])) {
+      $grouped[$title_id] = [
+        'title' => $title_name,
+        'questions' => []
+      ];
+    }
+
+    $grouped[$title_id]['questions'][] = $row;
+  }
+
+  return rest_ensure_response($grouped);
+}
+
+// ✅ POST Handler: Save questions under a title (create title if not exists)
+function mcq_save_questions(WP_REST_Request $request) {
+  global $wpdb;
+  $user_id   = get_current_user_id();
+  $title_id  = intval($request->get_param('titleId'));
+  $title_txt = sanitize_text_field($request->get_param('title'));
+  $questions = $request->get_param('questions');
+
+  if ($title_id > 0) {
+    // ✅ Use existing title ID
+    $existing_title_id = $wpdb->get_var($wpdb->prepare(
+      "SELECT id FROM {$wpdb->prefix}mcq_titles WHERE id = %d AND user_id = %d",
+      $title_id, $user_id
+    ));
+
+    if (!$existing_title_id) {
+      return new WP_REST_Response(['error' => 'Invalid title selected'], 400);
+    }
+  } else {
+    // ✅ Create or find by name
+    $existing_title_id = $wpdb->get_var($wpdb->prepare(
+      "SELECT id FROM {$wpdb->prefix}mcq_titles WHERE user_id = %d AND title = %s",
+      $user_id, $title_txt
+    ));
+
+    if (!$existing_title_id) {
+      $wpdb->insert("{$wpdb->prefix}mcq_titles", [
+        'user_id' => $user_id,
+        'title'   => $title_txt,
+      ]);
+      $existing_title_id = $wpdb->insert_id;
+    }
+  }
+
+  // ✅ Save questions under the resolved title ID
+  foreach ($questions as $q) {
+    $wpdb->insert("{$wpdb->prefix}mcq_questions", [
+      'user_id'     => $user_id,
+      'title_id'    => $existing_title_id,
+      'question'    => sanitize_text_field($q['question']),
+      'options'     => wp_json_encode($q['options']),
+      'answer'      => sanitize_text_field($q['answer']),
+      'explanation' => sanitize_text_field($q['explanation']),
+      'difficulty'  => sanitize_text_field($q['difficulty']),
+    ]);
+  }
+
+  return rest_ensure_response(['success' => true, 'title_id' => $existing_title_id]);
+}
+
+// ✅ NEW: GET Handler to return all titles for current user
+function mcq_get_titles() {
+  global $wpdb;
+  $user_id = get_current_user_id();
+
+  $results = $wpdb->get_results(
+    $wpdb->prepare(
+      "SELECT id, title FROM {$wpdb->prefix}mcq_titles WHERE user_id = %d ORDER BY created_at DESC",
+      $user_id
+    ),
+    ARRAY_A
+  );
+
+  return rest_ensure_response($results);
+}
+
+add_action('rest_api_init', function () {
+  register_rest_route('mcq/v1', '/titles', [
+    'methods' => 'GET',
+    'permission_callback' => function () {
+      return is_user_logged_in();
+    },
+    'callback' => function () {
+      global $wpdb;
+      $user_id = get_current_user_id();
+      $results = $wpdb->get_results($wpdb->prepare(
+        "SELECT id, title FROM {$wpdb->prefix}mcq_titles WHERE user_id = %d ORDER BY created_at DESC",
+        $user_id
+      ));
+      return rest_ensure_response($results);
+    }
+  ]);
+});
+
+

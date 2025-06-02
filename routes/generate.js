@@ -1,28 +1,19 @@
-import express from "express";
-import { generateQuestions } from "../utils/ai.js";
+import express from 'express';
+import { generateMCQ } from '../utils/ai.js';
 
 const router = express.Router();
 
-router.post("/", async (req, res) => {
+router.post('/', async (req, res) => {
   try {
-    const { text, type, userLanguage, questionCount, optionCount } = req.body;
+ const { text, userLanguage, questionCount, optionCount } = req.body;
+if (!text || text.length < 2) return res.status(400).json({ error: "Text too short" });
 
-    if (!text || !type) {
-      return res.status(400).json({ error: "Missing required parameters." });
-    }
+const questions = await generateMCQ(text, userLanguage, questionCount, optionCount);
+res.json({ questions });
 
-    const questions = await generateQuestions(
-      text,
-      type,
-      userLanguage,
-      questionCount,
-      optionCount
-    );
-
-    res.json({ questions });
   } catch (err) {
-    console.error("❌ Error generating questions:", err);
-    res.status(500).json({ error: "Failed to generate questions." });
+    console.error(err);
+    res.status(500).json({ error: 'Failed to generate MCQs' });
   }
 });
 
