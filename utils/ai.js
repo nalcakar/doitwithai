@@ -100,16 +100,20 @@ Format:
 ]${topicBlock}`;
 
     case "fill":
-      return `
+  return `
 ${commonHeader}
 
-Each item should be a sentence with a blank (____), the correct answer, and an explanation.
+Each item must include:
+- a full sentence with a blank (____),
+- the correct answer,
+- an explanation.
+
 Format:
 [
   {
-    "sentence": "The capital of France is ____.",
-    "correct_answer": "Paris",
-    "explanation": "Paris is the capital of France."
+    "sentence": "Standart bir futbol maçı _____ eşit yarıdan oluşur.",
+    "correct_answer": "iki",
+    "explanation": "Futbol maçları genellikle iki eşit yarıdan oluşur."
   }
 ]${topicBlock}`;
 
