@@ -140,3 +140,56 @@ ${subtext}
     }
   }
 }
+
+export async function generateFillInBlank(text, userLanguage = "", questionCount = 5) {
+  const langCode = franc(text || "");
+  const languageMap = { "eng": "English", "tur": "Turkish", /*...*/ };
+  const isoMap = { "İngilizce": "English", "Türkçe": "Turkish", /*...*/ };
+
+  const questionLanguage = userLanguage?.trim() || languageMap[langCode] || "İngilizce";
+  const promptLang = isoMap[questionLanguage] || "English";
+
+  const prompt = `
+You are an AI tutor.
+
+Generate ${questionCount} fill-in-the-blank questions based on the topic below.
+Each question should have one blank (use "_____" for the blank).
+Also provide the correct answer and a brief explanation.
+
+Use this strict JSON format:
+[
+  {
+    "question": "The capital of France is _____.",
+    "answer": "Paris",
+    "explanation": "Paris is the capital city of France."
+  },
+  ...
+]
+
+🟢 Write in ${promptLang} only.
+Topic:
+"""
+${text}
+"""`;
+
+  const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const result = await model.generateContent(prompt);
+      let raw = await result.response.text();
+      raw = raw.replace(/^\s*```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
+      const match = raw.match(/\[\s*{[\s\S]*?}\s*\]/);
+      if (!match) continue;
+
+      const parsed = JSON.parse(match[0]);
+      if (Array.isArray(parsed) && parsed.length) return parsed;
+    } catch (err) {
+      console.warn("Retrying fill generation:", err.message);
+    }
+  }
+
+  return [];
+}
+
