@@ -11,15 +11,19 @@ export async function fetchWikipediaSummary(topic, lang = "en") {
     const data = await res.json();
 
     const page = Object.values(data.query.pages)[0];
-    const fullText = page.extract || "";
 
-    return fullText.slice(0, 2000); // ✅ Maksimum 2000 karakter
+    // ✅ Eğer sayfa bulunamazsa veya extract yoksa null döndür
+    if (!page || page.missing || !page.extract) {
+      console.warn(`⚠️ Wikipedia'da '${topic}' başlığı bulunamadı (${lang})`);
+      return null;
+    }
+
+    return page.extract.slice(0, 2000); // ✅ 2000 karakterle sınırla
   } catch (err) {
     console.error("❌ Wikipedia fetch error:", err);
     return null;
   }
 }
-
 
 
 
