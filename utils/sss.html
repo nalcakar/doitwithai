@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>AI MCQ Generator</title>
+  <style>
+    
+
+    textarea {
+      width: 100%;
+      height: 120px;
+      padding: 10px;
+      font-size: 16px;
+      margin-bottom: 20px;
+    }
+
+    button {
+      padding: 12px 24px;
+      background-color: #10b981;
+      color: white;
+      border: none;
+      font-size: 16px;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+
+ .mcq-card {
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  padding: 16px;
+  margin-top: 20px;
+  border-radius: 10px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+  text-align: left; /* ✅ Sola yasla */
+}
+
+
+    .mcq-card h3 {
+      margin-top: 0;
+    }
+
+    .option {
+      padding-left: 20px;
+    }
+
+    .answer {
+      margin-top: 10px;
+      font-weight: bold;
+      color: #10b981;
+    }
+
+    .explanation {
+      margin-top: 5px;
+      color: #374151;
+      font-style: italic;
+    }
+
+ .choices__list--dropdown .choices__item {
+    text-align: left !important;
+  }
+  .choices__inner {
+    text-align: left !important;
+  }
+
+/* Choices.js - Make the dropdown and selected box look stylish */
+.choices__inner {
+  background-color: #f9fafb;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 16px;
+  padding: 10px 12px;
+  text-align: left;
+}
+
+.choices__list--dropdown .choices__item {
+  padding: 10px 12px;
+  font-size: 15px;
+  color: #111827;
+  border-bottom: 1px solid #e5e7eb;
+  text-align: left;
+}
+
+.choices__list--dropdown .choices__item--selectable:hover {
+  background-color: #e0f2fe;
+  color: #0c4a6e;
+}
+
+/* Group labels */
+.choices__list--dropdown .choices__item--group {
+  font-weight: bold;
+  font-size: 14px;
+  padding: 8px 12px;
+  color: #6b7280;
+  background-color: #f3f4f6;
+  border-bottom: 1px solid #e5e7eb;
+  text-transform: uppercase;
+}
+
+/* Dropdown container styling */
+.choices__list--dropdown {
+  border-radius: 8px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+  background-color: white;
+  border: 1px solid #e5e7eb;
+  overflow: hidden;
+}
+
+/* Focus effect */
+.choices__inner.is-focused {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
+}
+
+
+
+  .spinner {
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid #10b981;
+    border-radius: 50%;
+    width: 22px;
+    height: 22px;
+    animation: spin 0.9s linear infinite;
+    display: inline-block;
+    vertical-align: middle;
+    margin-left: 10px;
+  }
+
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+
+  .disabled-button {
+    opacity: 0.6;
+    pointer-events: none;
+  }
+  </style>
+<!-- ✅ Choices.js CSS -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/choices.js/public/assets/styles/choices.min.css" />
+<!-- ✅ Choices.js JS -->
+<script src="https://cdn.jsdelivr.net/npm/choices.js/public/assets/scripts/choices.min.js"></script>
+
+</head>
+<body>
+
+<div style="margin-bottom: 20px; text-align: right;">
+
+
+<a href="https://doitwithai.lemonsqueezy.com/buy/2b4072f5-5312-43ae-ab65-049c447c0859" target="_blank">
+  <button style="background-color: #6366f1; color: white; padding: 12px 24px; border: none; border-radius: 6px; cursor: pointer;">
+    🪙 Buy Tokens
+  </button>
+</a>
+</div>
+<div style="margin-top: 20px; padding: 24px; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 12px; box-shadow: 0 1px 6px rgba(0,0,0,0.05);">
+
+  <!-- 🔢 Token Info -->
+  <div id="tokenBadge" style="font-size: 16px; font-weight: bold; color: #374151; margin-bottom: 10px; display: none;">
+    🔢 Tokens left: <span id="tokenCount">...</span>
+  </div>
+  <div id="visitorTokenUsage" style="font-size: 14px; color: #6b7280; margin-bottom: 16px;"></div>
+
+  <!-- 🧠 Topic or File -->
+<div style="margin-top: 20px;">
+  <label>
+    <input type="checkbox" id="useWikipedia">
+    📚 Wikipedia'dan konu hakkında bilgi al
+  </label>
+</div>
+
+<div style="margin-top: 10px;">
+  <label for="wikiLangSelect">🌐 Wikipedia dili:</label>
+  <select id="wikiLangSelect">
+    <option value="en" selected>İngilizce</option>
+    <option value="tr">Türkçe</option>
+    <option value="es">İspanyolca</option>
+    <option value="fr">Fransızca</option>
+    <option value="de">Almanca</option>
+    <option value="ru">Rusça</option>
+    <option value="ar">Arapça</option>
+    <option value="zh">Çince</option>
+    <option value="ja">Japonca</option>
+    <option value="it">İtalyanca</option>
+  </select>
+</div>
+
+  <label for="textInput" style="display:block; font-weight: 600; font-size: 18px; margin-bottom: 6px;">🧠 Enter Topic or Text:</label>
+  <textarea id="textInput" placeholder="e.g. owls and eagles..." style="width: 100%; padding: 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 15px; margin-bottom: 16px;">futbol kuralları</textarea>
+
+
+  <!-- ⚙️ Controls Grid -->
+  <div style="display: flex; flex-wrap: wrap; gap: 20px;">
+
+    <div style="flex: 1 1 200px;">
+      <label style="display: block; font-weight: 600; margin-bottom: 6px;">❓ Question Type:</label>
+      <select id="questionType" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #d1d5db;">
+        <option value="mcq" selected>Multiple Choice</option>
+        <option value="fill">Fill in the Blank</option>
+      </select>
+    </div>
+
+    <div style="flex: 1 1 220px;">
+      <label style="display: block; font-weight: 600; margin-bottom: 6px;">🌍 Question Language:</label>
+      <select id="languageSelect" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #d1d5db;">
+        <option value="">🌐 Auto Detect</option>
+        <option value="İngilizce">English</option>
+        <option value="Türkçe">Türkçe</option>
+        <option value="İspanyolca">Español</option>
+        <option value="Fransızca">Français</option>
+        <option value="Almanca">Deutsch</option>
+        <option value="İtalyanca">Italiano</option>
+        <option value="Portekizce">Português</option>
+        <option value="Rusça">Русский</option>
+        <option value="Arapça">العربية</option>
+        <option value="Çince">中文</option>
+        <option value="Japonca">日本語</option>
+        <option value="Korece">한국어</option>
+        <option value="Flemenkçe">Nederlands</option>
+        <option value="Lehçe">Polski</option>
+        <option value="Hintçe">हिंदी</option>
+        <option value="Bengalce">বাংলা</option>
+        <option value="Vietnamca">Tiếng Việt</option>
+        <option value="Tayca">ภาษาไทย</option>
+        <option value="Romence">Română</option>
+        <option value="Ukraynaca">Українська</option>
+      </select>
+    </div>
+
+    <div style="flex: 1 1 180px;">
+      <label style="display: block; font-weight: 600; margin-bottom: 6px;">📊 Number of Questions:</label>
+      <select id="questionCount" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #d1d5db;">
+        <option value="5" selected>5</option>
+        <option value="10">10</option>
+        <option value="15">15</option>
+        <option value="20">20</option>
+      </select>
+    </div>
+
+    <div style="flex: 1 1 180px;">
+      <label style="display: block; font-weight: 600; margin-bottom: 6px;">🔢 Options per Question:</label>
+      <select id="optionCount" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #d1d5db;">
+        <option value="2">2</option>
+        <option value="3">3</option>
+        <option value="4" selected>4</option>
+        <option value="5">5</option>
+      </select>
+    </div>
+
+    <div style="flex: 1 1 220px; align-self: flex-end;">
+      <button id="generateBtn" style="min-width: 180px; padding: 12px 24px; background-color: #10b981; color: white; border: none; border-radius: 8px; font-size: 16px; cursor: pointer;">
+  ✨ Generate
+</button>
+    </div>
+  </div>
+</div>
+
+  <div id="outputContainer"></div>
+<div id="actionButtons" style="
+  margin-top: 24px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  justify-content: center;
+">
+
+  <button id="printBtn"
+    onclick="printSelected()"
+    style="
+      display: none;
+      background-color: #10b981;
+      color: white;
+      padding: 12px 24px;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background-color 0.2s ease;
+    "
+    onmouseover="this.style.backgroundColor='#059669'"
+    onmouseout="this.style.backgroundColor='#10b981'"
+  >
+    🖨️ Print Selected
+  </button>
+
+  <button id="downloadBtn"
+    onclick="downloadAsTxt()"
+    style="
+      display: none;
+      background-color: #3b82f6;
+      color: white;
+      padding: 12px 24px;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background-color 0.2s ease;
+    "
+    onmouseover="this.style.backgroundColor='#2563eb'"
+    onmouseout="this.style.backgroundColor='#3b82f6'"
+  >
+    📄 Download as TXT
+  </button>
+
+</div>
+
+<div style="margin-top: 30px; display: none;" id="saveSection">
+  <label for="titleSelect" style="
+  display: block;
+  font-size: 18px;
+  font-weight: 600;
+  color: #111827;
+  margin-bottom: 8px;
+  padding-left: 2px;
+">📝 Choose or create a title:</label>
+
+  <select id="titleSelect">
+    <option value="" disabled selected hidden>-- Select a title --</option>
+    <option value="__new__">➕ Create New Title</option>
+  </select>
+
+  <div id="newTitleInputContainer" style="margin-top: 10px; display: none;">
+    <input type="text" id="newTitleInput" placeholder="Enter new title" />
+  </div>
+
+  <div id="saveStatus" style="margin-top: 10px; color: #ef4444;"></div>
+  <button onclick="saveToDatabase()" style="margin-left: 10px; padding: 8px 8px;">💾 Save</button>
+</div>
+<hr>
+
+
+
+<script>
+ document.getElementById("generateBtn").addEventListener("click", generate);
+const API_BASE = location.hostname === "localhost"
+  ? "http://localhost:4000"
+  : "https://doitwithai.onrender.com";
+
+
+
+
+async function generate() {
+  const generateBtn = document.getElementById("generateBtn");
+  generateBtn.innerHTML = `⏳ Generating... <span class="spinner"></span>`;
+  generateBtn.classList.add("disabled-button");
+
+  document.getElementById("printBtn").style.display = "none";
+  document.getElementById("saveSection").style.display = "none";
+  document.getElementById("downloadBtn").style.display = "none";
+
+  const saveStatus = document.getElementById("saveStatus");
+  if (saveStatus && saveStatus.textContent.trim() !== "") {
+    saveStatus.textContent = "";
+  }
+
+  let text = document.getElementById('textInput').value.trim();
+  const output = document.getElementById('outputContainer');
+  output.innerHTML = "";
+
+  if (!text || text.length < 2) {
+    alert("⚠️ Please upload a file or enter some text.");
+    generateBtn.innerHTML = `✨ Generate`;
+    generateBtn.classList.remove("disabled-button");
+    return;
+  }
+
+  const selectedLanguage = document.getElementById("languageSelect").value;
+  const selectedQuestionCount = parseInt(document.getElementById("questionCount").value);
+  const selectedOptionCount = parseInt(document.getElementById("optionCount").value);
+  const questionType = document.getElementById("questionType")?.value || "mcq";
+
+  const useWikipedia = document.getElementById("useWikipedia")?.checked;
+  const wikiLang = document.getElementById("wikiLangSelect")?.value || "en";
+
+  // ✅ Wikipedia'dan veri çek (eğer dosya yüklenmemişse ve kutucuk işaretliyse)
+ if (!window.uploadedFileContent && useWikipedia) {
+    try {
+      const wikiRes = await fetch(`${API_BASE}/api/fetch-wikipedia`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ topic: text, lang: wikiLang })
+      });
+
+      const wikiData = await wikiRes.json();
+      if (wikiData?.summary) {
+        text = wikiData.summary;
+        console.log("📚 Wikipedia metni kullanıldı:", text);
+      } else {
+        alert("⚠️ Wikipedia'dan bilgi alınamadı. Girdiğiniz metinle devam ediliyor.");
+      }
+    } catch (err) {
+      console.warn("❌ Wikipedia fetch hatası:", err);
+      alert("⚠️ Wikipedia'dan veri alınamadı.");
+    }
+  }
+
+  const res = await fetch(`${API_BASE}/api/generate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      text,
+      userLanguage: selectedLanguage,
+      questionCount: selectedQuestionCount,
+      optionCount: selectedOptionCount,
+      questionType
+    })
+  });
+
+  const data = await res.json();
+
+  if (!res.ok || !data.questions || !Array.isArray(data.questions)) {
+    alert("❌ Failed to generate questions. Please try a longer or clearer topic.");
+    generateBtn.innerHTML = `✨ Generate`;
+    generateBtn.classList.remove("disabled-button");
+    return;
+  }
+
+  const questions = data.questions;
+
+  if (questions.length > 0) {
+    const success = await deductTokens(questions.length);
+    if (!success) return;
+    if (typeof loadUserTokenBadge === "function") loadUserTokenBadge();
+  }
+
+  renderQuestionCards(questions, text, selectedLanguage, selectedOptionCount, questionType);
+
+  document.getElementById("printBtn").style.display = "inline-block";
+  document.getElementById("saveSection").style.display = "block";
+  document.getElementById("downloadBtn").style.display = "inline-block";
+  generateBtn.innerHTML = `✨ Generate`;
+  generateBtn.classList.remove("disabled-button");
+}
+
+
+async function loadUserTokenBadge() {
+  try {
+    let tokens = 0;
+
+    if (!WPSettings?.isLoggedIn) {
+      const res = await fetch(`${API_BASE}/api/visitor-tokens`);
+      if (!res.ok) throw new Error("Visitor token fetch failed");
+      const data = await res.json();
+      tokens = data.tokens;
+    } else {
+      const res = await fetch('/wp-json/mcq/v1/tokens', {
+        headers: { 'X-WP-Nonce': WPSettings.nonce },
+        credentials: 'same-origin'
+      });
+      if (!res.ok) throw new Error("Member token fetch failed");
+      const data = await res.json();
+      tokens = data.tokens;
+    }
+
+    document.getElementById("tokenCount").textContent = tokens;
+    document.getElementById("tokenBadge").style.display = "block";
+
+    // Show no-credit badge if zero
+    document.getElementById("noTokensMessage").style.display = tokens === 0 ? "block" : "none";
+  } catch (err) {
+    console.error(err);
+    document.getElementById("tokenBadge").style.display = "none";
+    document.getElementById("noTokensMessage").style.display = "none";
+  }
+}
+
+async function deductTokens(count) {
+  try {
+    if (!WPSettings?.isLoggedIn) {
+      const res = await fetch(`${API_BASE}/api/visitor-tokens/deduct`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ count })
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        alert(`❌ Visitor token error: ${data.error}`);
+        return false;
+      }
+    } else {
+      const res = await fetch("/wp-json/mcq/v1/deduct-tokens", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-WP-Nonce": WPSettings.nonce
+        },
+        body: JSON.stringify({ count })
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        alert(`❌ Member token error: ${data.error}`);
+        return false;
+      }
+    }
+
+    return true;
+  } catch (err) {
+    console.error("❌ Token deduction failed:", err);
+    alert("❌ Token deduction request failed.");
+    return false;
+  }
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  loadUserTokenBadge();
+  loadSavedTitles?.();
+  loadTitleDropdown?.();
+
+  const titleSelect = document.getElementById("titleSelect");
+  const newInputContainer = document.getElementById("newTitleInputContainer");
+  if (titleSelect && newInputContainer) {
+    titleSelect.addEventListener("change", (e) => {
+      const showNewInput = e.target.value === "__new__";
+      newInputContainer.style.display = showNewInput ? "block" : "none";
+    });
+  }
+
+  document.getElementById("exportModalBtn")?.addEventListener("click", exportSelectedSaved);
+  document.getElementById("printModalBtn")?.addEventListener("click", printSelectedSaved);
+});
+
+
+
+function printSelected() {
+  const allCards = document.querySelectorAll(".mcq-card");
+  const selected = Array.from(allCards).filter(card =>
+    card.querySelector(".print-checkbox")?.checked
+  );
+
+  if (selected.length === 0) {
+    alert("⚠️ Please select at least one question to print.");
+    return;
+  }
+
+  const printWindow = window.open("", "", "width=900,height=700");
+  printWindow.document.write(`
+    <html><head><title>Selected Questions</title>
+    <style>
+      body { font-family: Arial; padding: 20px; }
+      .question-block { margin-bottom: 20px; }
+      .answer-block {
+        page-break-before: always;
+        border-top: 2px dashed #ccc;
+        padding-top: 20px;
+      }
+      .option { margin-left: 20px; }
+      .answer { font-weight: bold; color: green; margin-top: 10px; }
+      .explanation { font-style: italic; margin-top: 5px; }
+    </style>
+    </head><body>
+
+ 
+
+    <h2>📝 Questions</h2>
+  `);
+
+  // ❓ Soru ve seçenekler
+  let qCounter = 1;
+  selected.forEach(card => {
+    const qText = card.querySelector(".qtext")?.textContent || "";
+    const options = Array.from(card.querySelectorAll(".option")).map(opt => opt.innerHTML).join("");
+
+    printWindow.document.write(`
+      <div class="question-block">
+        <h3>Q${qCounter}. ${qText}</h3>
+        ${options}
+      </div>
+    `);
+
+    card.dataset.printIndex = qCounter; // ✅ cevaplar için takip
+    qCounter++;
+  });
+
+  // ✅ Cevaplar yeni sayfada
+  printWindow.document.write(`<div class="answer-block"><h2>✅ Answers & Explanations</h2>`);
+
+  selected.forEach(card => {
+    const printIndex = card.dataset.printIndex;
+    const answer = card.querySelector(".ans")?.textContent || "";
+    const explanation = card.querySelector(".expl")?.textContent || "";
+
+    printWindow.document.write(`
+      <div class="answer-set">
+        <h4>Q${printIndex} Answer:</h4>
+        <div class="answer">✅ ${answer}</div>
+        <div class="explanation">💡 ${explanation}</div>
+      </div>
+      <hr>
+    `);
+  });
+
+  printWindow.document.write(`</div></body></html>`);
+  printWindow.document.close();
+  printWindow.focus();
+  printWindow.print();
+}
+
+
+
+
+</script>
+
+
+
+</body>
+
+</html>
