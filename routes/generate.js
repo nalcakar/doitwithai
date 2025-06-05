@@ -1,6 +1,6 @@
 import express from 'express';
 import { generateMCQ, generateFillInBlank } from '../utils/ai.js';
-import { fetchWikipediaSummary } from '../utils/wikipediaUtils.js'; // ✅ Eklendi
+import { fetchWikipediaSummary } from '../utils/wikipediaUtils.js';
 
 const router = express.Router();
 
@@ -8,17 +8,25 @@ router.post('/', async (req, res) => {
   try {
     let { text, userLanguage, questionCount, optionCount, questionType, isFromFile } = req.body;
 
-    // ✅ Eğer metin kısa ve dosyadan gelmiyorsa, Wikipedia'dan metin çek
-    if (!isFromFile && text.length < 20 && !text.includes(" ")) {
-      const isoMap = {
-        "İngilizce": "en", "Türkçe": "tr", "Fransızca": "fr", "İspanyolca": "es",
-        "Almanca": "de", "Arapça": "ar", "Rusça": "ru", "Çince": "zh", "Japonca": "ja",
-        "İtalyanca": "it", "Portekizce": "pt", "Korece": "ko", "Lehçe": "pl", "Flemenkçe": "nl"
-      };
-      const lang = isoMap[userLanguage] || "en";
+    if (!text || text.length < 2) {
+      return res.status(400).json({ error: "Text too short" });
+    }
 
+    const wordCount = text.trim().split(/\s+/).length;
+    const langMap = {
+      "Türkçe": "tr",
+      "İngilizce": "en",
+      "Fransızca": "fr",
+      "Almanca": "de",
+      "İspanyolca": "es",
+      "Arapça": "ar"
+    };
+    const langCode = langMap[userLanguage] || 'en';
+
+    // ✅ Wikipedia’dan içerik çek sadece kullanıcı dosya yüklemediyse ve kısa konu girdiyse
+    if (!isFromFile && wordCount <= 10) {
       try {
-        const wikiText = await fetchWikipediaSummary(text, lang);
+        const wikiText = await fetchWikipediaSummary(text, langCode);
         console.log("📚 Wikipedia'dan metin alındı:", wikiText.slice(0, 200) + "...");
         text = wikiText;
       } catch (err) {
