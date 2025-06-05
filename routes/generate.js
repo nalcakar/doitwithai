@@ -1,6 +1,6 @@
 import express from 'express';
 import { generateMCQ, generateFillInBlank } from '../utils/ai.js';
-import { fetchWikipediaSummary } from '../utils/wikipediaUtils.js';
+import { fetchWikipediaSummary, languageToISOCode } from '../utils/wikipediaUtils.js';
 
 const router = express.Router();
 
@@ -12,25 +12,21 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: "Text too short" });
     }
 
-    const wordCount = text.trim().split(/\s+/).length;
-    const langMap = {
-      "Türkçe": "tr",
-      "İngilizce": "en",
-      "Fransızca": "fr",
-      "Almanca": "de",
-      "İspanyolca": "es",
-      "Arapça": "ar"
-    };
-    const langCode = langMap[userLanguage] || 'en';
+    // 🔍 Wikipedia özeti alma (eğer dosyadan gelmiyorsa ve 10 kelime veya daha azsa)
+    if (!isFromFile && text.trim().split(/\s+/).length <= 10) {
+      const topicForWiki = text.trim().split(/\s+/).slice(0, 10).join(" ");
+      const langCode = languageToISOCode(userLanguage || "İngilizce");
 
-    // ✅ Wikipedia’dan içerik çek sadece kullanıcı dosya yüklemediyse ve kısa konu girdiyse
-    if (!isFromFile && wordCount <= 10) {
       try {
-        const wikiText = await fetchWikipediaSummary(text, langCode);
-        console.log("📚 Wikipedia'dan metin alındı:", wikiText.slice(0, 200) + "...");
-        text = wikiText;
+        const wikiText = await fetchWikipediaSummary(topicForWiki, langCode);
+        if (wikiText) {
+          console.log("📚 Wikipedia'dan metin alındı:", topicForWiki);
+          text = wikiText;
+        } else {
+          console.warn("⚠️ Wikipedia özeti alınamadı:", topicForWiki);
+        }
       } catch (err) {
-        console.warn("⚠️ Wikipedia özeti alınamadı:", err.message);
+        console.error("❌ Wikipedia fetch hatası:", err.message);
       }
     }
 
