@@ -65,3 +65,6 @@ async function generate() {
   generateBtn.innerHTML = `✨ Generate`;
   generateBtn.classList.remove("disabled-button");
 }
+
+
+export default router;
