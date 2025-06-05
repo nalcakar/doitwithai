@@ -1,26 +1,26 @@
 // utils/wikipediaUtils.js
 import fetch from 'node-fetch';
 
-export async function fetchWikipediaSummary(topic) {
-  const cleanTopic = topic.trim().split(/\s+/).slice(0, 10).join(" ");
-  const endpoint = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(cleanTopic)}`;
-
+export async function fetchWikipediaSummary(topic, lang = "en") {
   try {
-    const response = await fetch(endpoint);
-    if (!response.ok) throw new Error("Wikipedia'dan içerik alınamadı");
+    const url = `https://${lang}.wikipedia.org/w/api.php?action=query&prop=extracts&titles=${encodeURIComponent(
+      topic
+    )}&exintro=false&explaintext=true&format=json&origin=*`;
 
-    const data = await response.json();
-    if (!data.extract) throw new Error("Wikipedia özeti boş");
+    const res = await fetch(url);
+    const data = await res.json();
 
-    console.log("📚 Wikipedia'dan alınan özet:");
-    console.log(data.extract);
+    const page = Object.values(data.query.pages)[0];
+    const fullText = page.extract || "";
 
-    return data.extract;
+    return fullText.slice(0, 2000); // ✅ Maksimum 2000 karakter
   } catch (err) {
-    console.warn(`⚠️ Wikipedia özeti alınamadı: ${cleanTopic}`);
+    console.error("❌ Wikipedia fetch error:", err);
     return null;
   }
 }
+
+
 
 
 
