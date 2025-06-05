@@ -1,70 +1,43 @@
-async function generate() {
-  const generateBtn = document.getElementById("generateBtn");
-  generateBtn.innerHTML = `⏳ Generating... <span class="spinner"></span>`;
-  generateBtn.classList.add("disabled-button");
+import express from 'express';
+import { generateMCQ, generateFillInBlank } from '../utils/ai.js';
+import { fetchWikipediaSummary } from '../utils/wikipediaUtils.js';
 
-  document.getElementById("printBtn").style.display = "none";
-  document.getElementById("saveSection").style.display = "none";
-  const saveStatus = document.getElementById("saveStatus");
-  if (saveStatus && saveStatus.textContent.trim() !== "") {
-    saveStatus.textContent = "";
+const router = express.Router();
+
+router.post('/', async (req, res) => {
+  try {
+    let { text, questionCount, optionCount, questionType, isFromFile } = req.body;
+
+    if (!text || text.length < 2) {
+      return res.status(400).json({ error: "Text too short" });
+    }
+
+    // Eğer dosyadan gelmediyse ve metin 10 kelime veya daha kısaysa Wikipedia'dan özet çek
+    if (!isFromFile && text.split(/\s+/).length <= 10) {
+      const summary = await fetchWikipediaSummary(text, 'en');
+      if (summary) {
+        console.log("📚 Wikipedia'dan alınan özet:");
+        console.log(summary);
+        text = summary;
+      } else {
+        console.warn("⚠️ Wikipedia özeti alınamadı:", text);
+      }
+    }
+
+    let questions = [];
+
+    if (questionType === "fill") {
+      questions = await generateFillInBlank(text, "English", questionCount);
+    } else {
+      questions = await generateMCQ(text, "English", questionCount, optionCount);
+    }
+
+    res.json({ questions });
+
+  } catch (err) {
+    console.error("❌ Soru üretiminde hata:", err);
+    res.status(500).json({ error: 'Failed to generate questions' });
   }
-
-  const text = document.getElementById('textInput').value.trim();
-  const output = document.getElementById('outputContainer');
-  output.innerHTML = "";
-
-  if (!text || text.length < 2) {
-    alert("⚠️ Please upload a file or enter some text.");
-    return;
-  }
-
-  // ✅ Kullanıcının dosya yükleyip yüklemediğini kontrol et
-  const isFromFile = !!window.lastUploadedFileText;
-
-  const selectedQuestionCount = parseInt(document.getElementById("questionCount").value);
-  const selectedOptionCount = parseInt(document.getElementById("optionCount").value);
-  const questionType = document.getElementById("questionType")?.value || "mcq";
-
-  const res = await fetch(`${API_BASE}/api/generate`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      text,
-      isFromFile, // 👈 dosyadan mı girildi bilgisi
-      questionCount: selectedQuestionCount,
-      optionCount: selectedOptionCount,
-      questionType
-    })
-  });
-
-  const data = await res.json();
-
-  if (!res.ok || !data.questions || !Array.isArray(data.questions)) {
-    alert("❌ Failed to generate questions. Please try a longer or clearer topic.");
-    return;
-  }
-
-  const questions = data.questions;
-
-  if (questions.length > 0) {
-    const success = await deductTokens(questions.length);
-    if (!success) return;
-    loadUserTokenBadge();
-  }
-
-  // 🎯 Soru kartlarını oluştur
-  questions.forEach((q, i) => {
-    // senin render() fonksiyonun aynen çalışmaya devam edebilir
-    // (kısalık için burada yeniden eklenmedi)
-  });
-
-  document.getElementById("printBtn").style.display = "inline-block";
-  document.getElementById("saveSection").style.display = "block";
-  document.getElementById("downloadBtn").style.display = "inline-block";
-  generateBtn.innerHTML = `✨ Generate`;
-  generateBtn.classList.remove("disabled-button");
-}
-
+});
 
 export default router;
