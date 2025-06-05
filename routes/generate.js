@@ -28,3 +28,22 @@ router.post('/', async (req, res) => {
 
 export default router;
 
+import fetch from 'node-fetch';
+
+router.post('/fetch-wikipedia', async (req, res) => {
+  const { topic, lang } = req.body;
+  try {
+    const langCode = lang || "en";
+    const apiUrl = `https://${langCode}.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(topic)}`;
+    const wikiRes = await fetch(apiUrl);
+    if (!wikiRes.ok) throw new Error("Wikipedia fetch failed");
+
+    const wikiData = await wikiRes.json();
+    const summary = wikiData.extract;
+
+    res.json({ summary });
+  } catch (err) {
+    console.error("❌ Wikipedia error:", err.message);
+    res.status(500).json({ error: "Wikipedia summary fetch failed" });
+  }
+});
