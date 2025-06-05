@@ -1,6 +1,6 @@
 import express from 'express';
 import { generateMCQ, generateFillInBlank } from '../utils/ai.js';
-import { fetchWikipediaSummary } from '../utils/wikipediaUtils.js';
+
 import { fetchWikipediaSummary, languageToISOCode } from '../utils/wikipediaUtils.js';
 
 
