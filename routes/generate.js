@@ -6,15 +6,15 @@ const router = express.Router();
 
 router.post('/', async (req, res) => {
   try {
-    let { text, questionCount, optionCount, questionType, isFromFile } = req.body;
+    let { text, userLanguage, questionCount, optionCount, questionType, isFromFile } = req.body;
 
     if (!text || text.length < 2) {
       return res.status(400).json({ error: "Text too short" });
     }
 
-    // Eğer dosyadan gelmediyse ve metin 10 kelime veya daha kısaysa Wikipedia'dan özet çek
+    // Eğer dosyadan gelmediyse ve konu çok kısaysa Wikipedia'dan destek al
     if (!isFromFile && text.split(/\s+/).length <= 10) {
-      const summary = await fetchWikipediaSummary(text, 'en');
+      const summary = await fetchWikipediaSummary(text, 'en'); // şimdilik İngilizce wiki kullanılıyor
       if (summary) {
         console.log("📚 Wikipedia'dan alınan özet:");
         console.log(summary);
@@ -24,12 +24,15 @@ router.post('/', async (req, res) => {
       }
     }
 
+    // Eğer userLanguage boşsa, İngilizce kullan
+    const lang = userLanguage && userLanguage.trim() !== "" ? userLanguage.trim() : "English";
+
     let questions = [];
 
     if (questionType === "fill") {
-      questions = await generateFillInBlank(text, "English", questionCount);
+      questions = await generateFillInBlank(text, lang, questionCount);
     } else {
-      questions = await generateMCQ(text, "English", questionCount, optionCount);
+      questions = await generateMCQ(text, lang, questionCount, optionCount);
     }
 
     res.json({ questions });
