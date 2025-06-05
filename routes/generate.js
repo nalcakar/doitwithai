@@ -1,7 +1,8 @@
 import express from 'express';
 import { generateMCQ, generateFillInBlank } from '../utils/ai.js';
 import { fetchWikipediaSummary } from '../utils/wikipediaUtils.js';
-import { languageToISOCode } from '../utils/langUtils.js'; // dil eşlemesi için
+import { fetchWikipediaSummary, languageToISOCode } from '../utils/wikipediaUtils.js';
+
 
 const router = express.Router();
 
