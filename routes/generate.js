@@ -1,38 +1,40 @@
 import express from 'express';
 import { generateMCQ, generateFillInBlank } from '../utils/ai.js';
 import { fetchWikipediaSummary } from '../utils/wikipediaUtils.js';
+import { languageToISOCode } from '../utils/langUtils.js'; // dil eşlemesi için
 
 const router = express.Router();
 
 router.post('/', async (req, res) => {
   try {
-    let { text, userLanguage, questionCount, optionCount, questionType, isFromFile } = req.body;
+    let { text, userLanguage = "", questionCount, optionCount, questionType, isFromFile } = req.body;
 
     if (!text || text.length < 2) {
       return res.status(400).json({ error: "Text too short" });
     }
 
-    // Eğer dosyadan gelmediyse ve konu çok kısaysa Wikipedia'dan destek al
+    // Dil kodu
+    const isoCode = languageToISOCode(userLanguage);
+    console.log(`🗣️ Language selected: ${userLanguage || "Auto Detect"}`);
+    console.log(`🌐 Prompt language sent to Gemini: ${isoCode === 'en' ? "English" : userLanguage}`);
+
+    // Wikipedia özeti alma (sadece dosya ile gelmediyse ve kısa başlıksa)
     if (!isFromFile && text.split(/\s+/).length <= 10) {
-      const summary = await fetchWikipediaSummary(text, 'en'); // şimdilik İngilizce wiki kullanılıyor
+      const summary = await fetchWikipediaSummary(text, isoCode);
       if (summary) {
         console.log("📚 Wikipedia'dan alınan özet:");
         console.log(summary);
-        text = summary;
+        text = `Here is some background information about "${text}":\n${summary}\n\nPlease generate questions based on this.`;
       } else {
-        console.warn("⚠️ Wikipedia özeti alınamadı:", text);
+        console.warn(`⚠️ Wikipedia özeti alınamadı: ${text}`);
       }
     }
 
-    // Eğer userLanguage boşsa, İngilizce kullan
-    const lang = userLanguage && userLanguage.trim() !== "" ? userLanguage.trim() : "English";
-
     let questions = [];
-
     if (questionType === "fill") {
-      questions = await generateFillInBlank(text, lang, questionCount);
+      questions = await generateFillInBlank(text, isoCode, questionCount);
     } else {
-      questions = await generateMCQ(text, lang, questionCount, optionCount);
+      questions = await generateMCQ(text, isoCode, questionCount, optionCount);
     }
 
     res.json({ questions });

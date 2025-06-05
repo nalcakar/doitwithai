@@ -20,7 +20,7 @@ export async function fetchWikipediaSummary(topic, lang = 'en') {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
 
-    return data.extract?.slice(0, 2000) || null;
+    return data.extract?.slice(0, 5000) || null;
   } catch (err) {
     console.error(`⚠️ Wikipedia özeti alınamadı: ${topic}`, err);
     return null;
