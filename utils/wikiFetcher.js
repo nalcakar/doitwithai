@@ -28,22 +28,27 @@ export async function fetchWikipediaSummary(topic, lang = 'en') {
     const pages = titleData.query.pages;
     const firstPage = Object.values(pages)[0];
 
-    if (firstPage.missing) {
-      // 2. Alternatif arama
-      const searchRes = await fetch(`https://${lang}.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(topic)}&format=json&origin=*`);
-      const searchData = await searchRes.json();
-      const topResult = searchData?.query?.search?.[0]?.title;
-      if (!topResult) return { summary: "" };
-      const fallback = await tryFetch(topResult);
-      return { summary: fallback };
+    if (!firstPage.missing) {
+      const normalizedTitle = firstPage.title;
+      const summary = await tryFetch(normalizedTitle);
+      return { summary };
     }
 
-    const normalizedTitle = firstPage.title;
-    const summary = await tryFetch(normalizedTitle);
-    return { summary };
+    // 2. Alternatif arama
+    const searchRes = await fetch(`https://${lang}.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(topic)}&format=json&origin=*`);
+    const searchData = await searchRes.json();
+    const results = searchData?.query?.search || [];
+
+    for (const result of results.slice(0, 3)) { // 🔁 ilk 3 sonucu sırayla dene
+      const fallback = await tryFetch(result.title);
+      if (fallback.length > 100) {
+        return { summary: fallback };
+      }
+    }
+
+    return { summary: "" };
   } catch (error) {
     console.error("❌ Wikipedia fetch error:", error.message);
     return { summary: "" };
   }
 }
-
