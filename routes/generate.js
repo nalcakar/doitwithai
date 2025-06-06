@@ -1,3 +1,4 @@
+
 import express from 'express';
 import { generateMCQ, generateFillInBlank } from '../utils/ai.js';
 import { fetchWikipediaSummary } from '../utils/wikiFetcher.js';
@@ -29,10 +30,11 @@ router.post('/', async (req, res) => {
         try {
           const wikiData = await fetchWikipediaSummary(text, wikiLang || 'en');
           if (wikiData && typeof wikiData.summary === 'string') {
-            if (wikiData.summary.trim().length > 0) {
-              finalText = wikiData.summary;
-            }
-          }
+  if (wikiData.summary.trim().length > 0) {
+    console.log("📚 Wikipedia'dan alınan özet:", wikiData.summary); // ← burada gösteriliyor
+    finalText = wikiData.summary;
+  }
+}
         } catch (err) {
           console.warn("Wikipedia fetch error:", err.message);
         }
