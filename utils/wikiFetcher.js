@@ -8,17 +8,6 @@ function capitalizeEachWord(str) {
     .join(" ");
 }
 
-// ✅ Basit Levenshtein benzeri benzerlik skoru
-function similarity(a, b) {
-  a = a.toLowerCase();
-  b = b.toLowerCase();
-  if (a === b) return 1;
-  let longer = a.length > b.length ? a : b;
-  let shorter = a.length > b.length ? b : a;
-  let common = [...shorter].filter(ch => longer.includes(ch)).length;
-  return common / longer.length;
-}
-
 export async function fetchWikipediaSummary(topic, lang = 'en') {
   const tryFetch = async (title) => {
     const htmlRes = await fetch(`https://${lang}.wikipedia.org/api/rest_v1/page/mobile-html/${encodeURIComponent(title)}`);
@@ -33,40 +22,16 @@ export async function fetchWikipediaSummary(topic, lang = 'en') {
   try {
     const formattedTopic = capitalizeEachWord(topic.trim());
 
-    // ✅ 1. Sayfa doğrudan var mı kontrol et
-    const pageCheck = await fetch(`https://${lang}.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(formattedTopic)}&format=json&origin=*`);
-    const pageJson = await pageCheck.json();
-    const firstPage = Object.values(pageJson.query.pages)[0];
-
-    if (!firstPage.missing) {
-      const summary = await tryFetch(firstPage.title);
-      if (summary.length > 100) {
-        return { summary };
-      }
-    }
-
-    // 🔍 2. Arama yap
-    const searchRes = await fetch(`https://${lang}.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(topic)}&format=json&origin=*`);
+    // 🔍 1. Search ile sonuç al
+    const searchRes = await fetch(`https://${lang}.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(formattedTopic)}&format=json&origin=*`);
     const searchJson = await searchRes.json();
     const results = searchJson?.query?.search || [];
 
-    // ✅ En benzer sonucu bul
-    let bestMatch = null;
-    let bestScore = 0;
-
-    for (const result of results) {
-      const score = similarity(result.title, topic);
-      if (score > bestScore) {
-        bestScore = score;
-        bestMatch = result.title;
-      }
-    }
-
-    // ✅ En benzer başlığa göre dene
-    if (bestMatch) {
-      const fallback = await tryFetch(bestMatch);
-      if (fallback.length > 100) {
-        return { summary: fallback };
+    if (results.length > 0) {
+      const bestMatchTitle = results[0].title; // ✅ En üstteki sonucu kullan
+      const summary = await tryFetch(bestMatchTitle);
+      if (summary.length > 100) {
+        return { summary };
       }
     }
 
