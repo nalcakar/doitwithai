@@ -11,31 +11,51 @@ export async function fetchWikipediaSummary(topic, lang = 'en') {
         p.replace(/<[^>]+>/g, '').replace(/\[\d+\]/g, '').trim()
       ).join(" ");
     } catch (err) {
-      console.warn("❌ tryFetch error for title:", title, "-", err.message);
+      console.warn("❌ tryFetch error:", title, "-", err.message);
       return "";
+    }
+  };
+
+  const searchWikipedia = async (query) => {
+    try {
+      const res = await fetch(`https://${lang}.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&format=json&origin=*`);
+      const json = await res.json();
+      return json?.query?.search || [];
+    } catch (err) {
+      console.warn("🔍 Arama başarısız:", err.message);
+      return [];
     }
   };
 
   try {
     console.log("📥 Gelen istek:", topic, lang);
 
-    // ✅ Wikipedia'da arama yap
-    const searchRes = await fetch(`https://${lang}.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(topic)}&format=json&origin=*`);
-    const searchJson = await searchRes.json();
-    const topResult = searchJson?.query?.search?.[0];
+    let results = await searchWikipedia(topic);
 
-    if (topResult?.title) {
-      console.log("🔎 Arama sonucu ilk başlık:", topResult.title);
-      const summary = await tryFetch(topResult.title);
-      console.log("📄 Özet uzunluğu:", summary.length);
+    // 🔁 Eğer sonuç yoksa, büyük harfli tekrar dene
+    if (!results || results.length === 0) {
+      const capitalized = topic.trim().split(" ").map(w =>
+        w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()
+      ).join(" ");
+      console.log("🔁 Tekrar deneniyor (düzenlenmiş başlık):", capitalized);
+      results = await searchWikipedia(capitalized);
+    }
+
+    // ✅ Arama sonucu varsa ilk başlığı kullan
+    if (results.length > 0) {
+      const title = results[0].title;
+      console.log("🔎 İlk çıkan başlık:", title);
+      const summary = await tryFetch(title);
       if (summary.length > 50) {
+        console.log("📄 Özet bulundu, uzunluğu:", summary.length);
         return { summary };
       }
     }
 
+    console.log("⚠️ Hiçbir özet bulunamadı");
     return { summary: "" };
   } catch (error) {
-    console.error("❌ Wikipedia fetch error:", error.message);
+    console.error("❌ fetchWikipediaSummary hata:", error.message);
     return { summary: "" };
   }
 }
