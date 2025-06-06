@@ -22,16 +22,27 @@ export async function fetchWikipediaSummary(topic, lang = 'en') {
   try {
     const formattedTopic = capitalizeEachWord(topic.trim());
 
-    // 🔍 1. Search ile sonuç al
-    const searchRes = await fetch(`https://${lang}.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(formattedTopic)}&format=json&origin=*`);
-    const searchJson = await searchRes.json();
-    const results = searchJson?.query?.search || [];
+    // ✅ 1. Sayfa doğrudan var mı?
+    const pageCheck = await fetch(`https://${lang}.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(formattedTopic)}&format=json&origin=*`);
+    const pageJson = await pageCheck.json();
+    const firstPage = Object.values(pageJson.query.pages)[0];
 
-    if (results.length > 0) {
-      const bestMatchTitle = results[0].title; // ✅ En üstteki sonucu kullan
-      const summary = await tryFetch(bestMatchTitle);
+    if (!firstPage.missing) {
+      const summary = await tryFetch(firstPage.title);
       if (summary.length > 100) {
         return { summary };
+      }
+    }
+
+    // ✅ 2. Arama sonuçlarından en üsttekini dene
+    const searchRes = await fetch(`https://${lang}.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(topic)}&format=json&origin=*`);
+    const searchJson = await searchRes.json();
+    const topResult = searchJson?.query?.search?.[0];
+
+    if (topResult?.title) {
+      const fallback = await tryFetch(topResult.title);
+      if (fallback.length > 100) {
+        return { summary: fallback };
       }
     }
 
