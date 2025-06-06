@@ -1,13 +1,5 @@
 import fetch from 'node-fetch';
 
-function capitalizeEachWord(str) {
-  return str
-    .toLowerCase()
-    .split(" ")
-    .map(w => w.charAt(0).toUpperCase() + w.slice(1))
-    .join(" ");
-}
-
 export async function fetchWikipediaSummary(topic, lang = 'en') {
   const tryFetch = async (title) => {
     try {
@@ -18,40 +10,30 @@ export async function fetchWikipediaSummary(topic, lang = 'en') {
       return paragraphs.slice(0, 5).map(p =>
         p.replace(/<[^>]+>/g, '').replace(/\[\d+\]/g, '').trim()
       ).join(" ");
-    } catch {
+    } catch (err) {
+      console.warn("❌ tryFetch error for title:", title, "-", err.message);
       return "";
     }
   };
 
   try {
-    const formattedTopic = capitalizeEachWord(topic.trim());
-    let bestSummary = "";
+    console.log("📥 Gelen istek:", topic, lang);
 
-    // 1. Doğrudan sayfa kontrolü
-    const pageCheck = await fetch(`https://${lang}.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(formattedTopic)}&format=json&origin=*`);
-    const pageJson = await pageCheck.json();
-    const firstPage = Object.values(pageJson.query.pages)[0];
-
-    if (!firstPage.missing) {
-      const directSummary = await tryFetch(firstPage.title);
-      if (directSummary.length > bestSummary.length) {
-        bestSummary = directSummary;
-      }
-    }
-
-    // 2. Arama sonuçlarından ilk başlığı da dene
+    // ✅ Wikipedia'da arama yap
     const searchRes = await fetch(`https://${lang}.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(topic)}&format=json&origin=*`);
     const searchJson = await searchRes.json();
     const topResult = searchJson?.query?.search?.[0];
 
     if (topResult?.title) {
-      const searchSummary = await tryFetch(topResult.title);
-      if (searchSummary.length > bestSummary.length) {
-        bestSummary = searchSummary;
+      console.log("🔎 Arama sonucu ilk başlık:", topResult.title);
+      const summary = await tryFetch(topResult.title);
+      console.log("📄 Özet uzunluğu:", summary.length);
+      if (summary.length > 50) {
+        return { summary };
       }
     }
 
-    return { summary: bestSummary };
+    return { summary: "" };
   } catch (error) {
     console.error("❌ Wikipedia fetch error:", error.message);
     return { summary: "" };
