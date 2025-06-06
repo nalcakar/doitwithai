@@ -22,24 +22,24 @@ export async function fetchWikipediaSummary(topic, lang = 'en') {
   try {
     const formattedTopic = capitalizeEachWord(topic.trim());
 
-    // 1. Normal sayfa kontrolü
-    const titleRes = await fetch(`https://${lang}.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(formattedTopic)}&format=json&origin=*`);
-    const titleData = await titleRes.json();
-    const pages = titleData.query.pages;
-    const firstPage = Object.values(pages)[0];
+    // ✅ 1. Doğrudan sayfa var mı kontrol et
+    const pageCheck = await fetch(`https://${lang}.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(formattedTopic)}&format=json&origin=*`);
+    const pageJson = await pageCheck.json();
+    const firstPage = Object.values(pageJson.query.pages)[0];
 
     if (!firstPage.missing) {
-      const normalizedTitle = firstPage.title;
-      const summary = await tryFetch(normalizedTitle);
-      return { summary };
+      const summary = await tryFetch(firstPage.title);
+      if (summary.length > 100) {
+        return { summary };
+      }
     }
 
-    // 2. Alternatif arama
+    // 🔍 2. Arama sonuçlarını sırayla dene
     const searchRes = await fetch(`https://${lang}.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(topic)}&format=json&origin=*`);
-    const searchData = await searchRes.json();
-    const results = searchData?.query?.search || [];
+    const searchJson = await searchRes.json();
+    const results = searchJson?.query?.search || [];
 
-    for (const result of results.slice(0, 3)) { // 🔁 ilk 3 sonucu sırayla dene
+    for (const result of results.slice(0, 5)) {
       const fallback = await tryFetch(result.title);
       if (fallback.length > 100) {
         return { summary: fallback };
