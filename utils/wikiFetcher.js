@@ -1,6 +1,8 @@
+// wikiFetcher.js
 import fetch from 'node-fetch';
+import { fetchWikipediaTitleViaGoogle } from './googleHelper.js';
 
-export async function fetchWikipediaSummary(topic, lang = 'en') {
+export async function fetchWikipediaSummary(topic, lang = 'tr') {
   const tryFetch = async (title) => {
     try {
       const htmlRes = await fetch(`https://${lang}.wikipedia.org/api/rest_v1/page/mobile-html/${encodeURIComponent(title)}`);
@@ -16,46 +18,30 @@ export async function fetchWikipediaSummary(topic, lang = 'en') {
     }
   };
 
-  const searchWikipedia = async (query) => {
-    try {
-      const res = await fetch(`https://${lang}.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&format=json&origin=*`);
-      const json = await res.json();
-      return json?.query?.search || [];
-    } catch (err) {
-      console.warn("🔍 Arama başarısız:", err.message);
-      return [];
-    }
-  };
-
   try {
     console.log("📥 Gelen istek:", topic, lang);
 
-    let results = await searchWikipedia(topic);
+    // 🔍 1. Wikipedia iç araması
+    const searchRes = await fetch(`https://${lang}.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(topic)}&format=json&origin=*`);
+    const searchJson = await searchRes.json();
+    const topResult = searchJson?.query?.search?.[0];
 
-    // 🔁 Eğer sonuç yoksa, büyük harfli tekrar dene
-    if (!results || results.length === 0) {
-      const capitalized = topic.trim().split(" ").map(w =>
-        w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()
-      ).join(" ");
-      console.log("🔁 Tekrar deneniyor (düzenlenmiş başlık):", capitalized);
-      results = await searchWikipedia(capitalized);
+    if (topResult?.title) {
+      console.log("🔎 Wikipedia arama sonucu:", topResult.title);
+      const summary = await tryFetch(topResult.title);
+      if (summary.length > 50) return { summary };
     }
 
-    // ✅ Arama sonucu varsa ilk başlığı kullan
-    if (results.length > 0) {
-      const title = results[0].title;
-      console.log("🔎 İlk çıkan başlık:", title);
-      const summary = await tryFetch(title);
-      if (summary.length > 50) {
-        console.log("📄 Özet bulundu, uzunluğu:", summary.length);
-        return { summary };
-      }
+    // 🔁 2. Google üzerinden Wikipedia başlığı dene
+    const googleTitle = await fetchWikipediaTitleViaGoogle(topic, lang);
+    if (googleTitle) {
+      const fallback = await tryFetch(googleTitle);
+      if (fallback.length > 50) return { summary: fallback };
     }
 
-    console.log("⚠️ Hiçbir özet bulunamadı");
     return { summary: "" };
   } catch (error) {
-    console.error("❌ fetchWikipediaSummary hata:", error.message);
+    console.error("❌ fetchWikipediaSummary genel hata:", error.message);
     return { summary: "" };
   }
 }
