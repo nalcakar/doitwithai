@@ -1,31 +1,27 @@
 import fetch from 'node-fetch';
 
 export async function fetchWikipediaSummary(topic, lang = 'en') {
-  const baseUrl = `https://${lang}.wikipedia.org/api/rest_v1/page/mobile-sections-lead/${encodeURIComponent(topic)}`;
+  const url = `https://${lang}.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(topic)}`;
 
   try {
-    const response = await fetch(baseUrl);
+    const response = await fetch(url);
 
-    // ❗ JSON değilse veya hata durumuysa yakala
+    // ❗ Geçerli JSON ve 200 mü?
     if (!response.ok || !response.headers.get("content-type")?.includes("application/json")) {
-      console.warn("❌ Wikipedia: Beklenmeyen içerik tipi veya 404");
+      console.warn("❌ Wikipedia: Geçersiz içerik veya 404");
       return { summary: "", warning: "Wikipedia'da bu başlık bulunamadı." };
     }
 
     const data = await response.json();
 
-    const isDisambiguation = data.sections?.[0]?.line?.toLowerCase()?.includes("anlam ayrımı");
-    let rawText = data.lead?.sections?.map(s => s.text).join("\n") || data.sections?.[0]?.text || "";
-    rawText = rawText.replace(/<[^>]+>/g, '');
+    // 🧹 HTML temizle
+    const cleanText = (data.extract || "").replace(/<[^>]+>/g, '').trim();
 
-    if (!rawText || rawText.length < 100 || isDisambiguation) {
-      return {
-        summary: "",
-        warning: "❌ Bu başlık belirsiz olabilir veya yeterli içerik bulunamadı. Örn: 'Kalp (organ)' gibi daha açık yazın."
-      };
+    if (!cleanText || cleanText.length < 50 || data.type === "disambiguation") {
+      return { summary: "", warning: "⚠️ Başlık çok kısa, belirsiz veya yönlendirme içeriyor." };
     }
 
-    return { summary: rawText.trim() };
+    return { summary: cleanText };
 
   } catch (error) {
     console.error("Wikipedia fetch error:", error.message);
