@@ -17,7 +17,7 @@ export async function fetchWikipediaSummary(topic, lang = 'en') {
     const pages = titleData.query.pages;
     const firstPage = Object.values(pages)[0];
     if (firstPage.missing) {
-      console.warn("❌ Wikipedia sayfası bulunamadı.");
+      console.warn("❌ Wikipedia page not found.");
       return { summary: "" };
     }
 
