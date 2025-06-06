@@ -1,27 +1,33 @@
+import fetch from 'node-fetch';
+
 export async function fetchWikipediaSummary(topic, lang = 'en') {
-  const url = `https://${lang}.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(topic)}`;
+  const baseUrl = `https://${lang}.wikipedia.org/api/rest_v1/page/mobile-sections-lead/${encodeURIComponent(topic)}`;
   try {
-    const response = await fetch(url);
+    const response = await fetch(baseUrl);
     const data = await response.json();
 
-    // ❗ Disambiguation sayfası mı?
-    const isDisambiguation = data.type === 'disambiguation';
+    // 🔍 Disambiguation sayfası kontrolü
+    const isDisambiguation = data.sections?.[0]?.line?.toLowerCase()?.includes("anlam ayrımı");
 
-    // ❗ İçerik çok kısa ve anlamsızsa
-    const isTooShort = data.extract && data.extract.length < 100;
+    // 🔍 Metni al (HTML ise temizle)
+    let rawText = data.lead?.sections?.map(s => s.text).join("\n") || data.sections?.[0]?.text || "";
 
-    if (isDisambiguation || isTooShort) {
+    // HTML etiketlerini temizle (çıplak metne dönüştür)
+    rawText = rawText.replace(/<[^>]+>/g, '');
+
+    // Çok kısa ve boş içerik varsa uyar
+    if (!rawText || rawText.length < 100 || isDisambiguation) {
       return {
         summary: "",
-        warning: "❌ Bu kelime birden fazla anlama gelebilir. Lütfen daha açık bir konu yazın. Örn: 'kalp (organ)'"
+        warning: "❌ Bu başlık belirsiz olabilir veya yeterli içerik bulunamadı. Daha açık bir konu girin. Örn: 'Kalp (organ)'"
       };
     }
 
     return {
-      summary: data.extract || ""
+      summary: rawText.trim()
     };
   } catch (error) {
-    console.error("Wikipedia fetch error:", error.message);
+    console.error("❌ Wikipedia fetch error:", error.message);
     return { summary: "" };
   }
 }
