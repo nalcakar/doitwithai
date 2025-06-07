@@ -1,16 +1,13 @@
 import fetch from 'node-fetch';
 
-function capitalizeEachWord(str) {
-  return str
-    .toLowerCase()
-    .split(" ")
-    .map(w => w.charAt(0).toUpperCase() + w.slice(1))
-    .join(" ");
+function capitalizeFirstLetter(str) {
+  if (!str) return "";
+  return str.charAt(0).toUpperCase() + str.slice(1);
 }
 
 export async function fetchWikipediaSummary(topic, lang = 'en') {
   try {
-    const formattedTopic = capitalizeEachWord(topic.trim());
+    const formattedTopic = capitalizeFirstLetter(topic.trim());
 
     const titleRes = await fetch(`https://${lang}.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(formattedTopic)}&format=json&origin=*`);
     const titleData = await titleRes.json();
