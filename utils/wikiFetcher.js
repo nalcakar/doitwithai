@@ -17,18 +17,20 @@ export async function fetchWikipediaSummary(topic, lang = 'en') {
     const matchedTitle = firstResult.title;
     console.log("🔍 Wikipedia title found:", matchedTitle);
 
-    // 📄 2. HTML içeriği al
-    const htmlRes = await fetch(`https://${lang}.wikipedia.org/api/rest_v1/page/mobile-html/${encodeURIComponent(matchedTitle)}`);
-    const htmlText = await htmlRes.text();
+    // 📄 2. /summary endpoint'i ile içerik al (redirect'leri işler)
+    const summaryRes = await fetch(`https://${lang}.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(matchedTitle)}`);
+    const summaryData = await summaryRes.json();
 
-    const paragraphs = htmlText.match(/<p>(.*?)<\/p>/g);
-    if (!paragraphs || paragraphs.length === 0) return { summary: "", matchedTitle };
+    if (!summaryData.extract) {
+      console.warn("❌ No extract found in summary response.");
+      return { summary: "", matchedTitle };
+    }
 
-    const cleaned = paragraphs.slice(0, 5).map(p =>
-      p.replace(/<[^>]+>/g, '').replace(/\[\d+\]/g, '').trim()
-    ).join(" ");
+    return {
+      summary: summaryData.extract,
+      matchedTitle: summaryData.title || matchedTitle
+    };
 
-    return { summary: cleaned, matchedTitle };
   } catch (error) {
     console.error("❌ Wikipedia fetch error:", error.message);
     return { summary: "", matchedTitle: "" };
