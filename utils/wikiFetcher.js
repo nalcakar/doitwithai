@@ -1,31 +1,27 @@
 import fetch from 'node-fetch';
 
-function capitalizeEachWord(str) {
-  return str
-    .toLowerCase()
-    .split(" ")
-    .map(w => w.charAt(0).toUpperCase() + w.slice(1))
-    .join(" ");
-}
-
 export async function fetchWikipediaSummary(topic, lang = 'en') {
   try {
-    const formattedTopic = capitalizeEachWord(topic.trim());
+    const trimmedTopic = topic.trim();
 
-    const titleRes = await fetch(`https://${lang}.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(formattedTopic)}&format=json&origin=*`);
-    const titleData = await titleRes.json();
-    const pages = titleData.query.pages;
-    const firstPage = Object.values(pages)[0];
-    if (firstPage.missing) {
-      console.warn("❌ Wikipedia page not found.");
+    // 🔍 1. Wikipedia iç arama API'si ile başlık bul
+    const searchRes = await fetch(`https://${lang}.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(trimmedTopic)}&format=json&origin=*`);
+    const searchData = await searchRes.json();
+
+    const firstResult = searchData.query?.search?.[0];
+    if (!firstResult) {
+      console.warn("❌ Wikipedia page not found via search.");
       return { summary: "" };
     }
 
-    const normalizedTitle = firstPage.title;
+    const matchedTitle = firstResult.title;
+    console.log("🔍 Wikipedia title found:", matchedTitle);
 
-    const htmlRes = await fetch(`https://${lang}.wikipedia.org/api/rest_v1/page/mobile-html/${encodeURIComponent(normalizedTitle)}`);
+    // 📄 2. mobile-html endpoint ile içerik çek
+    const htmlRes = await fetch(`https://${lang}.wikipedia.org/api/rest_v1/page/mobile-html/${encodeURIComponent(matchedTitle)}`);
     const htmlText = await htmlRes.text();
 
+    // 🔎 Paragrafları temizle
     const paragraphs = htmlText.match(/<p>(.*?)<\/p>/g);
     if (!paragraphs || paragraphs.length === 0) return { summary: "" };
 
