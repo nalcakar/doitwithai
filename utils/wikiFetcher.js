@@ -12,35 +12,30 @@ function capitalizeFirstLetter(str) {
 function extractSection(html, anchor) {
   if (!anchor) return "";
 
-  // Normalize başlık: küçük harf, türkçe karakter düzeltme, boşluk sil
   const normalize = str => str
     .toLowerCase()
-    .replace(/[\u0300-\u036f]/g, "") // aksan sil
-    .replace(/[çğıöşü]/g, c =>
-      ({ 'ç': 'c', 'ğ': 'g', 'ı': 'i', 'ö': 'o', 'ş': 's', 'ü': 'u' }[c])
-    )
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // aksanlar
+    .replace(/[çğıöşü]/g, c => ({ 'ç': 'c', 'ğ': 'g', 'ı': 'i', 'ö': 'o', 'ş': 's', 'ü': 'u' }[c]))
     .replace(/[^a-z0-9]/gi, '');
 
-  const normAnchor = normalize(anchor);
+  const normalizedAnchor = normalize(anchor);
 
-  const sectionRegex = /<(h2|h3|h4)[^>]*>\s*<span[^>]*id="([^"]+)"[^>]*>.*?<\/span>\s*<\/\1>/gi;
+  const headingRegex = /<(h2|h3)[^>]*>\s*<span[^>]*>(.*?)<\/span>\s*<\/\1>/gi;
 
   let match;
   let startIndex = -1;
   let endIndex = -1;
-  let lastMatchEnd = -1;
 
-  while ((match = sectionRegex.exec(html)) !== null) {
-    const id = match[2];
-    const normalizedId = normalize(id);
+  while ((match = headingRegex.exec(html)) !== null) {
+    const headingText = match[2];
+    const normalizedHeading = normalize(headingText);
 
-    if (startIndex === -1 && normalizedId.includes(normAnchor)) {
+    if (startIndex === -1 && normalizedHeading.includes(normalizedAnchor)) {
       startIndex = match.index;
     } else if (startIndex !== -1) {
       endIndex = match.index;
       break;
     }
-    lastMatchEnd = match.index;
   }
 
   if (startIndex === -1) return "";
