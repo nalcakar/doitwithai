@@ -78,7 +78,8 @@ export async function fetchWikipediaSummary(rawTopic, lang = "en") {
     const normalizedTitle = firstPage.title;
 
     // 📄 HTML getir
-    const htmlRes = await fetch(`https://${lang}.wikipedia.org/api/rest_v1/page/mobile-html/${encodeURIComponent(normalizedTitle)}`);
+    const htmlRes = await fetch(`https://${lang}.wikipedia.org/wiki/${encodeURIComponent(normalizedTitle)}`);
+
     const htmlText = await htmlRes.text();
 
     let summary = "";
