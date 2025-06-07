@@ -9,26 +9,54 @@ function capitalizeFirstLetter(str) {
 }
 
 // 🔎 Belirli başlıktaki paragrafı al
-function extractSection(htmlText, heading) {
-  const headingRegex = new RegExp(`<h[2-4][^>]*>\\s*${heading}\\s*</h[2-4]>`, "i");
-  const match = headingRegex.exec(htmlText);
-  if (!match) return "";
+function extractSection(html, anchor) {
+  if (!anchor) return "";
 
-  const startIndex = match.index;
-  const subHtml = htmlText.slice(startIndex);
+  // Normalize başlık: küçük harf, türkçe karakter düzeltme, boşluk sil
+  const normalize = str => str
+    .toLowerCase()
+    .replace(/[\u0300-\u036f]/g, "") // aksan sil
+    .replace(/[çğıöşü]/g, c =>
+      ({ 'ç': 'c', 'ğ': 'g', 'ı': 'i', 'ö': 'o', 'ş': 's', 'ü': 'u' }[c])
+    )
+    .replace(/[^a-z0-9]/gi, '');
 
-  const nextHeadingRegex = /<h[2-4][^>]*>/gi;
-  const nextHeading = nextHeadingRegex.exec(subHtml.slice(match[0].length));
-  const endIndex = nextHeading ? nextHeading.index + match[0].length : subHtml.length;
+  const normAnchor = normalize(anchor);
 
-  const sectionHtml = subHtml.slice(0, endIndex);
+  const sectionRegex = /<(h2|h3|h4)[^>]*>\s*<span[^>]*id="([^"]+)"[^>]*>.*?<\/span>\s*<\/\1>/gi;
+
+  let match;
+  let startIndex = -1;
+  let endIndex = -1;
+  let lastMatchEnd = -1;
+
+  while ((match = sectionRegex.exec(html)) !== null) {
+    const id = match[2];
+    const normalizedId = normalize(id);
+
+    if (startIndex === -1 && normalizedId.includes(normAnchor)) {
+      startIndex = match.index;
+    } else if (startIndex !== -1) {
+      endIndex = match.index;
+      break;
+    }
+    lastMatchEnd = match.index;
+  }
+
+  if (startIndex === -1) return "";
+
+  if (endIndex === -1) endIndex = html.length;
+  const sectionHtml = html.slice(startIndex, endIndex);
+
   const paragraphs = sectionHtml.match(/<p>(.*?)<\/p>/g);
-  if (!paragraphs) return "";
+  if (!paragraphs || paragraphs.length === 0) return "";
 
   return paragraphs
+    .slice(0, 5)
     .map(p => p.replace(/<[^>]+>/g, '').replace(/\[\d+\]/g, '').trim())
-    .join(" ");
+    .join("\n\n");
 }
+
 
 // 📥 Ana fonksiyon
 export async function fetchWikipediaSummary(rawTopic, lang = "en") {
