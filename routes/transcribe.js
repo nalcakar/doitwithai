@@ -4,6 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import ffmpeg from 'fluent-ffmpeg';
 import ffprobeStatic from 'ffprobe-static';
+import fetch from 'node-fetch';
 import { transcribeAudio } from '../utils/whisperClient.js';
 import { deductTokensForUser } from '../utils/tokenManager.js';
 
@@ -20,27 +21,6 @@ router.post('/', upload.single('file'), async (req, res) => {
     const filePath = req.file.path;
     const originalName = req.file.originalname;
     const ip = req.headers['x-forwarded-for']?.split(',')[0] || req.socket.remoteAddress;
-  let user = null;
-const nonce = req.headers['x-wp-nonce'];
-
-if (nonce) {
-  try {
-    const verifyRes = await fetch("https://doitwithai.org/wp-json/wp/v2/users/me", {
-      headers: {
-        "Content-Type": "application/json",
-        "X-WP-Nonce": nonce
-      }
-    });
-
-    if (verifyRes.ok) {
-      const userData = await verifyRes.json();
-      user = { id: userData.id, name: userData.name, nonce }; // add nonce for later use
-    }
-  } catch (err) {
-    console.warn("⚠️ Failed to verify user via nonce:", err.message);
-  }
-}
-
 
     console.log("🧾 Uploaded file:", {
       path: filePath,
@@ -49,6 +29,29 @@ if (nonce) {
       size: req.file.size
     });
 
+    // 🧠 Attempt to verify WordPress user
+    let user = null;
+    const nonce = req.headers['x-wp-nonce'];
+    if (nonce) {
+      try {
+        const verifyRes = await fetch("https://doitwithai.org/wp-json/wp/v2/users/me", {
+          headers: {
+            "Content-Type": "application/json",
+            "X-WP-Nonce": nonce
+          }
+        });
+        if (verifyRes.ok) {
+          const userData = await verifyRes.json();
+          user = { id: userData.id, name: userData.name, nonce };
+        } else {
+          console.warn("⚠️ Invalid nonce or not logged in.");
+        }
+      } catch (err) {
+        console.warn("⚠️ WP nonce verification failed:", err.message);
+      }
+    }
+
+    // ⏱️ Calculate duration
     ffmpeg.ffprobe(filePath, async (err, metadata) => {
       if (err || !metadata?.format?.duration) {
         fs.unlink(filePath, () => {});
