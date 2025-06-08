@@ -1,5 +1,6 @@
 import redis from '../config/redisClient.js';
 import fetch from 'node-fetch';
+import redis from '../config/redisClient.js';
 
 export async function deductTokensForUser({ user, ip, count }) {
   if (user?.isMember) {
