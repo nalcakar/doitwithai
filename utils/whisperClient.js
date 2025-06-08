@@ -21,8 +21,8 @@ export async function transcribeAudio(filePath, originalName = 'audio.mp3') {
     });
 
     return response.text;
-  } catch (err) {
-    console.error("❌ Transcription error:", err);
-    throw new Error("Transcription failed.");
-  }
+ } catch (err) {
+  console.error("❌ Transcription route error:", err);
+  res.status(500).json({ error: err.message || 'Failed to transcribe audio.' });
+}
 }
