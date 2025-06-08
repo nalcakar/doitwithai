@@ -1,13 +1,14 @@
+// src/config/redisClient.js
 import { createClient } from 'redis';
 
 const redis = createClient({
-  url: process.env.REDIS_URL || 'redis://localhost:6379',
+  url: process.env.REDIS_URL, // ✅ use environment variable
 });
 
 redis.on('error', (err) => {
   console.error('❌ Redis client error:', err);
 });
 
-await redis.connect();
+redis.connect();
 
 export default redis;
