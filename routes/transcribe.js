@@ -4,7 +4,6 @@ import fs from 'fs';
 import path from 'path';
 import ffmpeg from 'fluent-ffmpeg';
 import ffprobeStatic from 'ffprobe-static';
-import fetch from 'node-fetch';
 import { transcribeAudio } from '../utils/whisperClient.js';
 import { deductTokensForUser } from '../utils/tokenManager.js';
 
@@ -29,35 +28,12 @@ router.post('/', upload.single('file'), async (req, res) => {
       size: req.file.size
     });
 
-    // 🧠 Attempt to verify WordPress user via nonce
-    const nonce = req.headers['x-wp-nonce'];
-    let user = null;
+    const isMember = req.body?.isMember === 'true';
+    const user = isMember ? { isMember: true } : null;
 
-    console.log("🔑 Received nonce:", nonce);
+    console.log("🔍 Member status from frontend:", isMember);
 
-    if (nonce) {
-      try {
-        const verifyRes = await fetch("https://doitwithai.org/wp-json/wp/v2/users/me", {
-          headers: {
-            "Content-Type": "application/json",
-            "X-WP-Nonce": nonce
-          }
-        });
-
-        const json = await verifyRes.json();
-        console.log("🔐 WP user check response:", json);
-
-        if (verifyRes.ok && json?.id) {
-          user = { id: json.id, name: json.name, nonce };
-        } else {
-          console.warn("⚠️ Invalid nonce — user check failed.");
-        }
-      } catch (err) {
-        console.warn("❌ WP nonce verification failed:", err.message);
-      }
-    }
-
-    // ⏱️ Calculate audio duration with ffprobe
+    // ⏱️ Get audio duration
     ffmpeg.ffprobe(filePath, async (err, metadata) => {
       if (err || !metadata?.format?.duration) {
         fs.unlink(filePath, () => {});
@@ -71,14 +47,12 @@ router.post('/', upload.single('file'), async (req, res) => {
 
       console.log(`⏱️ Duration: ${durationInSec.toFixed(2)}s → ${minutes} min = 🔻 ${tokenCost} token(s)`);
 
-      // 🧾 Deduct tokens (user or visitor fallback)
       const result = await deductTokensForUser({ user, ip, count: tokenCost });
       if (!result.success) {
         fs.unlink(filePath, () => {});
         return res.status(403).json({ error: result.error });
       }
 
-      // 🎤 Transcribe
       const transcript = await transcribeAudio(filePath, originalName);
       fs.unlink(filePath, () => {});
       res.json({ text: transcript });
