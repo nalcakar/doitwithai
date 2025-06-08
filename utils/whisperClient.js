@@ -1,5 +1,5 @@
-// whisperClient.js
-import fs from 'fs';
+import fs from 'fs/promises';
+import path from 'path';
 import OpenAI from 'openai';
 
 const openai = new OpenAI({
@@ -7,10 +7,13 @@ const openai = new OpenAI({
 });
 
 export async function transcribeAudio(filePath) {
-  const fileStream = fs.createReadStream(filePath);
+  const fileBuffer = await fs.readFile(filePath);
 
   const response = await openai.audio.transcriptions.create({
-    file: fileStream,
+    file: {
+      name: path.basename(filePath),
+      data: fileBuffer,
+    },
     model: 'whisper-1',
   });
 
