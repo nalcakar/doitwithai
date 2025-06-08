@@ -1,23 +1,24 @@
-// whisperClient.js
 import fs from 'fs';
+import path from 'path';
 import OpenAI from 'openai';
-import { fileFromPath } from 'openai/uploads'; // ✅ Required for proper file formatting
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
 export async function transcribeAudio(filePath) {
-  try {
-    const file = await fileFromPath(filePath); // ✅ ensures correct field structure
-    const response = await openai.audio.transcriptions.create({
-      file,
-      model: 'whisper-1',
-      response_format: 'text', // optional: you can remove this line to use default
-    });
-    return response.text;
-  } catch (err) {
-    console.error("❌ Whisper transcription failed:", err);
-    throw err;
-  }
+  const fileStream = fs.createReadStream(filePath);
+
+  const response = await openai.audio.transcriptions.create({
+    file: {
+      value: fileStream,
+      options: {
+        filename: path.basename(filePath),
+        contentType: 'audio/mpeg' // or dynamically detect with mime if needed
+      }
+    },
+    model: 'whisper-1',
+  });
+
+  return response.text;
 }
