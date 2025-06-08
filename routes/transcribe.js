@@ -7,7 +7,7 @@ import { transcribeAudio } from '../utils/whisperClient.js';
 const router = express.Router();
 const upload = multer({ dest: 'uploads/' });
 
-router.post('/api/transcribe', upload.single('file'), async (req, res) => {
+router.post('/', upload.single('file'), async (req, res) => {
   try {
     if (!req.file || !req.file.path) {
       return res.status(400).json({ error: 'No file uploaded.' });
