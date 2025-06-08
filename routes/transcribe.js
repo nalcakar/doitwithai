@@ -20,7 +20,27 @@ router.post('/', upload.single('file'), async (req, res) => {
     const filePath = req.file.path;
     const originalName = req.file.originalname;
     const ip = req.headers['x-forwarded-for']?.split(',')[0] || req.socket.remoteAddress;
-    const user = null; // 🔧 If needed, replace this with logic to extract WordPress nonce and user data
+  let user = null;
+const nonce = req.headers['x-wp-nonce'];
+
+if (nonce) {
+  try {
+    const verifyRes = await fetch("https://doitwithai.org/wp-json/wp/v2/users/me", {
+      headers: {
+        "Content-Type": "application/json",
+        "X-WP-Nonce": nonce
+      }
+    });
+
+    if (verifyRes.ok) {
+      const userData = await verifyRes.json();
+      user = { id: userData.id, name: userData.name, nonce }; // add nonce for later use
+    }
+  } catch (err) {
+    console.warn("⚠️ Failed to verify user via nonce:", err.message);
+  }
+}
+
 
     console.log("🧾 Uploaded file:", {
       path: filePath,
