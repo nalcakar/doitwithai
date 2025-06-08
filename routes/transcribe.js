@@ -26,7 +26,7 @@ router.post('/', upload.single('file'), async (req, res) => {
     });
 
     // 🕒 Get audio duration and compute token cost
-    const durationInSeconds = await getAudioDurationInSeconds(fs.createReadStream(filePath));
+   const durationInSeconds = await getAudioDurationInSeconds(filePath);
     const durationInMinutes = Math.ceil(durationInSeconds / 60);
     const tokensToDeduct = durationInMinutes * 2;
 
