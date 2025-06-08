@@ -1,3 +1,13 @@
+import { Redis } from '@upstash/redis';
+import fetch from 'node-fetch'; // ✅ Also make sure this is imported
+
+const redis = new Redis({
+  url: process.env.UPSTASH_REDIS_REST_URL,
+  token: process.env.UPSTASH_REDIS_REST_TOKEN
+});
+
+const DAILY_LIMIT = 20;
+
 export async function deductTokensForUser({ user, ip, count }) {
   try {
     if (!user) {
@@ -10,7 +20,7 @@ export async function deductTokensForUser({ user, ip, count }) {
       await redis.set(redisKey, current + count, { ex: 86400 });
       return { success: true };
     } else {
-      // Logged-in user (✅ fixed URL)
+      // Logged-in user
       const res = await fetch('https://doitwithai.org/wp-json/mcq/v1/deduct-tokens', {
         method: "POST",
         headers: {
