@@ -8,14 +8,29 @@ const redis = new Redis({
 
 const DAILY_LIMIT = 20;
 
-export async function deductVisitorTokens(ip, count) {
-  const redisKey = `visitor_tokens_${ip}`;
-  const current = parseInt(await redis.get(redisKey)) || 0;
+export async function deductMemberTokens(userId, count) {
+  try {
+    const res = await fetch(`https://yourdomain.com/wp-json/mcq/v1/deduct-tokens`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        // You may need to pass a valid nonce/token if required
+        "X-WP-Nonce": process.env.WP_NONCE // or pass from frontend
+      },
+      body: JSON.stringify({ user_id: userId, count })
+    });
 
-  if (current + count > DAILY_LIMIT) {
+    if (!res.ok) {
+      console.error("❌ Member token deduction failed", await res.text());
+      return false;
+    }
+
+    const data = await res.json();
+    return data.success;
+  } catch (err) {
+    console.error("❌ Member token deduction error:", err);
     return false;
   }
-
-  await redis.set(redisKey, current + count, { ex: 86400 }); // Expires in 24h
-  return true;
 }
+
+

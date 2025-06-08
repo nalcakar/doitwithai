@@ -4,7 +4,10 @@ import fs from 'fs';
 import path from 'path';
 import { getAudioDurationInSeconds } from 'get-audio-duration';
 import { transcribeAudio } from '../utils/whisperClient.js';
-import { deductVisitorTokens } from '../utils/tokenHelpers.js'; // ✅ import visitor logic
+import {
+  deductVisitorTokens,
+  deductMemberTokens
+} from '../utils/tokenHelpers.js';
 
 const router = express.Router();
 const upload = multer({ dest: 'uploads/' });
@@ -25,24 +28,30 @@ router.post('/', upload.single('file'), async (req, res) => {
       size: req.file.size
     });
 
-    // 🕒 Get audio duration and compute token cost
-   const durationInSeconds = await getAudioDurationInSeconds(filePath);
+    const durationInSeconds = await getAudioDurationInSeconds(filePath);
     const durationInMinutes = Math.ceil(durationInSeconds / 60);
     const tokensToDeduct = durationInMinutes * 2;
 
     console.log(`⏱️ Duration: ${durationInMinutes} minute(s) → 🔻 ${tokensToDeduct} token(s)`);
 
-    // 🔐 Deduct visitor tokens
-    const ip = req.headers['x-forwarded-for']?.split(',')[0] || req.socket.remoteAddress;
-    const success = await deductVisitorTokens(ip, tokensToDeduct);
-    if (!success) {
-      fs.unlink(filePath, () => {}); // clean up
-      return res.status(403).json({ error: 'Visitor token limit exceeded.' });
+    let success = false;
+
+    if (req.user && req.user.id) {
+      console.log("🧑 Member ID:", req.user.id);
+      success = await deductMemberTokens(req.user.id, tokensToDeduct);
+    } else {
+      const ip = req.headers['x-forwarded-for']?.split(',')[0] || req.socket.remoteAddress;
+      console.log("🌐 Visitor IP:", ip);
+      success = await deductVisitorTokens(ip, tokensToDeduct);
     }
 
-    // 🧠 Transcribe with OpenAI Whisper
+    if (!success) {
+      fs.unlink(filePath, () => {});
+      return res.status(403).json({ error: 'Token deduction failed or limit exceeded.' });
+    }
+
     const transcript = await transcribeAudio(filePath, originalName);
-    fs.unlink(filePath, () => {}); // 🧹 Clean up
+    fs.unlink(filePath, () => {}); // 🧹 cleanup
 
     res.json({
       text: transcript,
