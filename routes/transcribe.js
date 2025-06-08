@@ -34,10 +34,15 @@ router.post('/', upload.single('file'), async (req, res) => {
 
     console.log(`⏱️ Duration: ${durationInMinutes} minute(s) → 🔻 ${tokensToDeduct} token(s)`);
 
+    // ✅ Inject user from header (for WordPress users)
+    if (!req.user && req.headers['x-user-id']) {
+      req.user = { id: parseInt(req.headers['x-user-id']) };
+    }
+
     let success = false;
 
     if (req.user && req.user.id) {
-      console.log("🧑 Member ID:", req.user.id);
+      console.log("🧑 Member ID detected:", req.user.id);
       success = await deductMemberTokens(req.user.id, tokensToDeduct);
     } else {
       const ip = req.headers['x-forwarded-for']?.split(',')[0] || req.socket.remoteAddress;
