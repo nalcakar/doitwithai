@@ -38,7 +38,7 @@ router.post('/', upload.single('file'), async (req, res) => {
       });
     }
 
-   const transcript = await transcribeAudio(filePath);
+const transcript = await transcribeAudio(filePath, req.file.originalname);
     fs.unlinkSync(filePath); // clean up temp file
     res.json({ text: transcript });
 

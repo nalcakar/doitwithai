@@ -6,20 +6,20 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-export async function transcribeAudio(filePath) {
+export async function transcribeAudio(filePath, originalName) {
   try {
     if (!fs.existsSync(filePath)) {
       throw new Error("File does not exist.");
     }
 
     const fileStream = fs.createReadStream(filePath);
-    const fileName = path.basename(filePath);
+    const fileName = originalName; // ✅ Use original name with extension
 
     console.log("🎧 Sending file to OpenAI:", fileName);
 
     const response = await openai.audio.transcriptions.create({
       file: fileStream,
-      fileName, // ✅ Required for file format detection
+      fileName, // ✅ Correctly identifies the type (.mp3)
       model: 'whisper-1',
       response_format: 'json'
     });
@@ -29,12 +29,6 @@ export async function transcribeAudio(filePath) {
 
   } catch (error) {
     console.error("❌ Error during transcription:", error);
-
-    // Better debug info if it's an OpenAI response
-    if (error.response) {
-      console.error("OpenAI error response:", await error.response.json?.());
-    }
-
     throw new Error("Transcription failed. Please try a different file.");
   }
 }
