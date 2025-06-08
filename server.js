@@ -18,7 +18,7 @@ app.use(express.static('public'));
 // ✅ Register all API routes
 app.use('/api/generate', generateRouter);
 app.use('/api/visitor-tokens', visitorTokenRouter);
-app.use(transcribeRoute); // ✅ This handles /api/transcribe from transcribe.js
+app.use('/api/transcribe', transcribeRoute);// ✅ This handles /api/transcribe from transcribe.js
 
 // ✅ Home route
 app.get('/', (req, res) => {
