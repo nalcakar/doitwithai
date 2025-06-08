@@ -1,5 +1,5 @@
+// whisperClient.js
 import fs from 'fs';
-import path from 'path';
 import OpenAI from 'openai';
 
 const openai = new OpenAI({
@@ -10,13 +10,7 @@ export async function transcribeAudio(filePath) {
   const fileStream = fs.createReadStream(filePath);
 
   const response = await openai.audio.transcriptions.create({
-    file: {
-      value: fileStream,
-      options: {
-        filename: path.basename(filePath),
-        contentType: 'audio/mpeg' // or dynamically detect with mime if needed
-      }
-    },
+    file: fileStream,
     model: 'whisper-1',
   });
 
