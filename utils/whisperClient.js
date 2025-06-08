@@ -2,15 +2,12 @@ import fs from 'fs';
 import path from 'path';
 import OpenAI from 'openai';
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 export async function transcribeAudio(filePath, originalName = 'audio.mp3') {
   try {
     const fileStream = fs.createReadStream(filePath);
-
-    const fileName = path.basename(originalName); // ✅ 'fsm.mp3', not temp name
+    const fileName = path.basename(originalName); // must include extension
 
     console.log("🎧 Sending to OpenAI:", {
       fileName,
@@ -19,8 +16,8 @@ export async function transcribeAudio(filePath, originalName = 'audio.mp3') {
 
     const response = await openai.audio.transcriptions.create({
       file: fileStream,
-      fileName,         // ✅ This must include `.mp3`
-      model: 'whisper-1',
+      fileName, // ✅ required
+      model: 'whisper-1'
     });
 
     return response.text;

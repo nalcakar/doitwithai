@@ -1,3 +1,8 @@
+import fs from 'fs';
+const uploadDir = './uploads';
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir);
+}
 import express from 'express';
 import dotenv from 'dotenv';
 import cors from 'cors';
