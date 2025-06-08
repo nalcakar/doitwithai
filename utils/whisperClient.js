@@ -9,11 +9,17 @@ const openai = new OpenAI({
 export async function transcribeAudio(filePath, originalName = 'audio.mp3') {
   try {
     const fileStream = fs.createReadStream(filePath);
-    const fileName = path.basename(originalName); // <- MUST end with .mp3 or supported extension
+
+    const fileName = path.basename(originalName); // ✅ 'fsm.mp3', not temp name
+
+    console.log("🎧 Sending to OpenAI:", {
+      fileName,
+      filePath
+    });
 
     const response = await openai.audio.transcriptions.create({
       file: fileStream,
-      fileName, // ✅ Required to help detect format
+      fileName,         // ✅ This must include `.mp3`
       model: 'whisper-1',
     });
 
