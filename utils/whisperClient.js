@@ -1,27 +1,26 @@
+import fs from 'fs';
+import path from 'path';
 import OpenAI from 'openai';
-import { fileFromPath } from 'openai/uploads'; // ✅ Required for proper formatting
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-export async function transcribeAudio(filePath) {
+export async function transcribeAudio(filePath, originalName = 'audio.mp3') {
   try {
-    const file = await fileFromPath(filePath); // ✅ File with name and MIME type
+    const fileStream = fs.createReadStream(filePath);
+    const fileName = path.basename(originalName); // important!
 
     const response = await openai.audio.transcriptions.create({
-      file,
+      file: fileStream,
+      fileName,
       model: 'whisper-1',
-      // Optional:
-      // language: 'tr',         // specify language if known
-      // translate: true,        // translate to English
-      // prompt: 'Proje özeti',  // helpful context
     });
 
     return response.text;
 
-  } catch (error) {
-    console.error("❌ Transcription error:", error);
-    throw new Error("Transcription failed. Please try a different file.");
+  } catch (err) {
+    console.error("❌ Transcription error:", err);
+    throw new Error("Transcription failed.");
   }
 }
