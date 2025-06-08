@@ -1,5 +1,4 @@
-import fs from 'fs/promises';
-import path from 'path';
+import fs from 'fs';
 import OpenAI from 'openai';
 
 const openai = new OpenAI({
@@ -7,13 +6,10 @@ const openai = new OpenAI({
 });
 
 export async function transcribeAudio(filePath) {
-  const fileBuffer = await fs.readFile(filePath);
+  const fileStream = fs.createReadStream(filePath); // ✅ Stream-based
 
   const response = await openai.audio.transcriptions.create({
-    file: {
-      name: path.basename(filePath),
-      data: fileBuffer,
-    },
+    file: fileStream,
     model: 'whisper-1',
   });
 
