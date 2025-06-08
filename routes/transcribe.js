@@ -23,7 +23,7 @@ router.post('/', upload.single('file'), async (req, res) => {
       size: req.file.size
     });
 
-    const transcript = await transcribeAudio(filePath, originalName);
+    const transcript = await transcribeAudio(req.file.path, req.file.originalname);
 
     fs.unlink(filePath, () => {}); // 🧹 Clean up after transcription
 
