@@ -5,16 +5,18 @@ import path from 'path';
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 export async function transcribeAudio(filePath, originalName) {
-  const stream = fs.createReadStream(filePath);
-  const filename = path.basename(originalName); // e.g. "fsm.mp3"
+  const fileStream = fs.createReadStream(filePath);
 
-  const resp = await openai.audio.transcriptions.create({
-    file: {
-      name: filename,
-      stream: stream,
-    },
+  // 🛠️ Fix: Use a "File-like" object with a name
+  const fileForWhisper = {
+    name: originalName || 'audio.mp3',
+    stream: fileStream
+  };
+
+  const response = await openai.audio.transcriptions.create({
+    file: fileForWhisper,
     model: 'whisper-1',
   });
 
-  return resp.text;
+  return response.text;
 }
