@@ -1,4 +1,4 @@
-import fs from 'fs';
+import fs from 'fs/promises';
 import path from 'path';
 import OpenAI from 'openai';
 
@@ -8,27 +8,47 @@ const openai = new OpenAI({
 
 export async function transcribeAudio(filePath, originalName) {
   try {
-    if (!fs.existsSync(filePath)) {
-      throw new Error("File does not exist.");
+    const buffer = await fs.readFile(filePath); // ✅ read buffer
+    const extension = path.extname(originalName || filePath).toLowerCase();
+
+    // Guess MIME type (OpenAI doesn't do this automatically)
+    const mimeMap = {
+      '.mp3': 'audio/mpeg',
+      '.mpeg': 'audio/mpeg',
+      '.mpga': 'audio/mpeg',
+      '.m4a': 'audio/x-m4a',
+      '.mp4': 'video/mp4',
+      '.wav': 'audio/wav',
+      '.ogg': 'audio/ogg',
+      '.oga': 'audio/ogg',
+      '.flac': 'audio/flac',
+      '.webm': 'audio/webm',
+    };
+
+    const mimeType = mimeMap[extension];
+    if (!mimeType) {
+      throw new Error(`Unsupported extension: ${extension}`);
     }
 
-    const fileStream = fs.createReadStream(filePath);
-    const fileName = originalName; // ✅ Use original name with extension
+    // Build actual File object
+    const file = {
+      name: originalName,
+      type: mimeType,
+      size: buffer.length,
+      arrayBuffer: async () => buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength)
+    };
 
-    console.log("🎧 Sending file to OpenAI:", fileName);
+    console.log("🎧 Sending file to OpenAI:", file.name, mimeType);
 
     const response = await openai.audio.transcriptions.create({
-      file: fileStream,
-      fileName, // ✅ Correctly identifies the type (.mp3)
+      file,
       model: 'whisper-1',
-      response_format: 'json'
     });
 
-    console.log("✅ Transcription received.");
     return response.text;
 
-  } catch (error) {
-    console.error("❌ Error during transcription:", error);
+  } catch (err) {
+    console.error("❌ Error during transcription:", err);
     throw new Error("Transcription failed. Please try a different file.");
   }
 }
