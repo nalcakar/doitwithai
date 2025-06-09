@@ -12,6 +12,7 @@ const upload = multer({ dest: 'uploads/' });
 router.post('/', upload.single('file'), async (req, res) => {
   try {
     if (!req.file || !req.file.path) {
+      console.warn("⚠️ No file uploaded.");
       return res.status(400).json({ error: 'No file uploaded.' });
     }
 
@@ -25,7 +26,7 @@ router.post('/', upload.single('file'), async (req, res) => {
       size: req.file.size
     });
 
-    // Get duration using ffmpeg
+    // Step 1: Detect duration using ffprobe
     ffmpeg.ffprobe(filePath, async (err, metadata) => {
       if (err) {
         console.error("❌ ffprobe error:", err);
@@ -38,7 +39,7 @@ router.post('/', upload.single('file'), async (req, res) => {
 
       console.log(`⏱️ Duration: ${durationMinutes} min → 🔻 ${tokensToDeduct} tokens`);
 
-      // Detect login via X-WP-Nonce
+      // Step 2: Decide whether user is logged in
       const nonce = req.headers['x-wp-nonce'];
       const isLoggedIn = typeof nonce === 'string' && nonce.length > 0;
 
@@ -51,22 +52,35 @@ router.post('/', upload.single('file'), async (req, res) => {
         ...(isLoggedIn ? { 'X-WP-Nonce': nonce } : {})
       };
 
+      console.log("🔁 Deducting tokens from:", deductEndpoint);
+      console.log("📦 Payload:", { count: tokensToDeduct });
+
       const deductRes = await fetch(deductEndpoint, {
         method: 'POST',
         headers: deductHeaders,
         body: JSON.stringify({ count: tokensToDeduct })
       });
 
-      const deductData = await deductRes.json();
+      let deductData = {};
+      try {
+        deductData = await deductRes.json();
+      } catch (parseErr) {
+        console.error("❌ Failed to parse deduction response JSON:", parseErr);
+      }
+
+      console.log("📬 Deduct response:", deductData);
 
       if (!deductRes.ok) {
         console.error("❌ Token deduction failed:", deductData);
         return res.status(403).json({ error: deductData.error || 'Token deduction failed.' });
       }
 
-      // Transcribe
+      // Step 3: Transcribe
+      console.log("🎧 Starting transcription...");
       const transcript = await transcribeAudio(filePath, originalName);
-      fs.unlink(filePath, () => {}); // clean up
+
+      fs.unlink(filePath, () => {}); // Clean up uploaded file
+      console.log("✅ Transcription complete.");
       res.json({ text: transcript });
     });
 
