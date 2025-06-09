@@ -45,19 +45,18 @@ router.post('/', upload.single('file'), async (req, res) => {
       console.log(`⏱️ Duration: ${durationMinutes} min → Token cost: ${tokenCost}`);
 
       let hasEnoughTokens = false;
+      let userType = 'visitor';
 
       const nonce = req.headers['x-wp-nonce'];
+
+      // ✅ Try member token check first
       if (nonce) {
         try {
           const wpBase = process.env.WP_BASE_URL || 'https://doitwithai.org';
-        const wpRes = await fetch(`${wpBase}/wp-json/mcq/v1/tokens`, {
-  headers: {
-    'X-WP-Nonce': nonce,
-    'Content-Type': 'application/json'
-  },
-  credentials: 'same-origin'  // ✅ safer for WordPress REST API
-});
-
+          const wpRes = await fetch(`${wpBase}/wp-json/mcq/v1/tokens`, {
+            headers: { 'X-WP-Nonce': nonce },
+            credentials: 'same-origin'
+          });
 
           const wpText = await wpRes.text();
           console.log("📦 Raw WP Response:", wpText);
@@ -70,26 +69,36 @@ router.post('/', upload.single('file'), async (req, res) => {
             wpData = {};
           }
 
-          const tokenBalance = parseInt(wpData.tokens);
-          console.log("🪙 Member tokens:", tokenBalance);
-
-          if (wpRes.ok && !isNaN(tokenBalance) && tokenBalance >= tokenCost) {
-            hasEnoughTokens = true;
+          if (wpData.code === 'rest_cookie_invalid_nonce') {
+            console.warn("⚠️ Invalid nonce, treating as visitor.");
           } else {
-            console.warn("❌ Member does not have enough tokens.");
+            const tokenBalance = parseInt(wpData.tokens);
+            console.log("🪙 Member tokens:", tokenBalance);
+
+            if (!isNaN(tokenBalance) && tokenBalance >= tokenCost) {
+              hasEnoughTokens = true;
+              userType = 'member';
+            } else {
+              console.warn("❌ Member does not have enough tokens.");
+            }
           }
         } catch (err) {
           console.error("❌ Failed to check member tokens:", err);
         }
-      } else {
-        // Visitor fallback
+      }
+
+      // ✅ If still false, fallback to visitor check
+      if (!hasEnoughTokens) {
         const ip = req.headers['x-forwarded-for']?.split(',')[0] || req.socket.remoteAddress;
         const redisKey = `visitor_tokens_${ip}`;
+
         try {
           const used = parseInt(await redis.get(redisKey)) || 0;
-          console.log(`📊 Visitor used ${used}, needs ${tokenCost}`);
+          console.log(`📊 Visitor IP ${ip}, used ${used}, needs ${tokenCost}`);
+
           if ((used + tokenCost) <= 20) {
             hasEnoughTokens = true;
+            userType = 'visitor';
           } else {
             console.warn("❌ Visitor over daily limit.");
           }
@@ -103,7 +112,7 @@ router.post('/', upload.single('file'), async (req, res) => {
         return res.status(403).json({ error: "Not enough tokens to transcribe this file." });
       }
 
-      console.log("🎧 Starting transcription...");
+      console.log(`🎧 Starting transcription for ${userType}...`);
       const transcript = await transcribeAudio(filePath, originalName);
       fs.unlink(filePath, () => {});
       console.log("✅ Transcription complete.");
