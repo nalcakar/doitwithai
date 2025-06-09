@@ -50,10 +50,14 @@ router.post('/', upload.single('file'), async (req, res) => {
       if (nonce) {
         try {
           const wpBase = process.env.WP_BASE_URL || 'https://doitwithai.org';
-          const wpRes = await fetch(`${wpBase}/wp-json/mcq/v1/tokens`, {
-            headers: { 'X-WP-Nonce': nonce },
-            credentials: 'include'
-          });
+        const wpRes = await fetch(`${wpBase}/wp-json/mcq/v1/tokens`, {
+  headers: {
+    'X-WP-Nonce': nonce,
+    'Content-Type': 'application/json'
+  },
+  credentials: 'same-origin'  // ✅ safer for WordPress REST API
+});
+
 
           const wpText = await wpRes.text();
           console.log("📦 Raw WP Response:", wpText);
