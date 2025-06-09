@@ -3,9 +3,9 @@ import multer from 'multer';
 import fs from 'fs';
 import path from 'path';
 import ffmpeg from 'fluent-ffmpeg';
-import { transcribeAudio } from '../utils/whisperClient.js';
 import fetch from 'node-fetch';
 import { Redis } from '@upstash/redis';
+import { transcribeAudio } from '../utils/whisperClient.js';
 
 const router = express.Router();
 const upload = multer({ dest: 'uploads/' });
@@ -14,6 +14,14 @@ const redis = new Redis({
   url: process.env.UPSTASH_REDIS_REST_URL,
   token: process.env.UPSTASH_REDIS_REST_TOKEN
 });
+
+const DAILY_LIMIT = 20;
+
+// ✅ IP extraction
+function getClientIP(req) {
+  const forwarded = req.headers['x-forwarded-for'];
+  return forwarded ? forwarded.split(',')[0].trim() : req.connection?.remoteAddress || req.socket?.remoteAddress || 'unknown';
+}
 
 router.post('/', upload.single('file'), async (req, res) => {
   try {
@@ -43,63 +51,52 @@ router.post('/', upload.single('file'), async (req, res) => {
       const durationMinutes = Math.ceil(durationSeconds / 60);
       const tokenCost = durationMinutes * 2;
 
-      console.log(`⏱️ Duration: ${durationMinutes} minute(s) → 🔻 ${tokenCost} token(s)`);
+      console.log(`⏱️ Duration: ${durationMinutes} min → 🔻 ${tokenCost} tokens`);
 
-      let tokenCheckPass = false;
-      const nonce = req.headers["x-wp-nonce"];
-      const ip = req.headers['x-forwarded-for']?.split(',')[0] || req.socket?.remoteAddress || 'unknown';
-      const redisKey = `visitor_tokens_${ip}`;
+      const isLoggedIn = !!req.headers['x-wp-nonce'];
 
-      try {
-        if (nonce) {
-          // ✅ Member token check
-          const memberRes = await fetch("https://doitwithai.org/wp-json/mcq/v1/tokens", {
-            headers: { "X-WP-Nonce": nonce },
-          });
-          const memberData = await memberRes.json();
-          if (memberRes.ok && memberData.tokens >= tokenCost) {
-            tokenCheckPass = true;
-          }
-        } else {
-          // ✅ Visitor token check
-          const used = parseInt(await redis.get(redisKey)) || 0;
-          if (used + tokenCost <= 20) {
-            tokenCheckPass = true;
-          }
-        }
+      // Step 2: Token check
+      if (!isLoggedIn) {
+        // ✅ Visitor
+        const ip = getClientIP(req);
+        const redisKey = `visitor_tokens_${ip}`;
+        const current = parseInt(await redis.get(redisKey)) || 0;
 
-        if (!tokenCheckPass) {
+        if (current + tokenCost > DAILY_LIMIT) {
+          console.warn(`❌ Visitor over limit: used ${current}, needs ${tokenCost}`);
           fs.unlink(filePath, () => {});
-          return res.status(403).json({ error: "Insufficient tokens for this transcription." });
+          return res.status(403).json({ error: 'Insufficient visitor tokens for transcription.' });
         }
 
-        // Step 2: Transcribe
-        console.log("🎧 Starting transcription...");
-        const transcript = await transcribeAudio(filePath, originalName);
-        fs.unlink(filePath, () => {});
-        console.log("✅ Transcription complete.");
+        await redis.incrby(redisKey, tokenCost);
+        await redis.expire(redisKey, 86400); // 24 hours
 
-        // Step 3: Deduct tokens
-        if (nonce) {
-          await fetch("https://doitwithai.org/wp-json/mcq/v1/deduct-tokens", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "X-WP-Nonce": nonce
-            },
-            body: JSON.stringify({ count: tokenCost }),
-          });
-        } else {
-          await redis.incrby(redisKey, tokenCost);
-          await redis.expire(redisKey, 86400);
+      } else {
+        // ✅ Logged-in Member
+        const verifyRes = await fetch(`${process.env.BASE_URL}/wp-json/mcq/v1/deduct-tokens`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-WP-Nonce': req.headers['x-wp-nonce']
+          },
+          body: JSON.stringify({ count: tokenCost })
+        });
+
+        if (!verifyRes.ok) {
+          const error = await verifyRes.json();
+          fs.unlink(filePath, () => {});
+          return res.status(403).json({ error: error?.error || 'Token deduction failed.' });
         }
-
-        return res.json({ text: transcript, durationMinutes });
-      } catch (tokenErr) {
-        console.error("❌ Token check/deduction error:", tokenErr);
-        fs.unlink(filePath, () => {});
-        return res.status(500).json({ error: "Token check or deduction failed." });
       }
+
+      // Step 3: Transcribe
+      console.log("🎧 Starting transcription...");
+      const transcript = await transcribeAudio(filePath, originalName);
+      fs.unlink(filePath, () => {});
+      console.log("✅ Transcription complete.");
+
+      // Step 4: Return result
+      res.json({ text: transcript, durationMinutes });
     });
 
   } catch (err) {
