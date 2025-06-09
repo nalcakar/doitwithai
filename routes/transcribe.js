@@ -56,9 +56,10 @@ const wpRes = await fetch(`${wpBase}/wp-json/mcq/v1/tokens`, {
           const wpData = await wpRes.json();
           console.log("🪙 Member tokens:", wpData.tokens);
 
-          if (wpRes.ok && wpData.tokens >= tokenCost) {
-            hasEnoughTokens = true;
-          } else {
+        const tokenBalance = parseInt(wpData.tokens);
+if (wpRes.ok && !isNaN(tokenBalance) && tokenBalance >= tokenCost) {
+  hasEnoughTokens = true;
+} else {
             console.warn("❌ Member does not have enough tokens.");
           }
         } catch (err) {
