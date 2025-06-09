@@ -5,7 +5,7 @@ import path from 'path';
 import ffmpeg from 'fluent-ffmpeg';
 import { transcribeAudio } from '../utils/whisperClient.js';
 import { getVisitorTokenCount, deductVisitorTokens } from '../routes/visitorTokens.js';
-import { getMemberTokenCount, deductMemberTokens } from '../routes/memberTokens.js'; // ✅ you'll need this if not present
+
 
 const router = express.Router();
 const upload = multer({ dest: 'uploads/' });
