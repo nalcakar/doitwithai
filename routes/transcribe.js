@@ -26,11 +26,9 @@ router.post('/', upload.single('file'), async (req, res) => {
       size: req.file.size
     });
 
-    // Step 1: Detect duration using ffprobe
     ffmpeg.ffprobe(filePath, async (err, metadata) => {
       if (err) {
         console.error("❌ ffprobe error:", err);
-        fs.unlink(filePath, () => {});
         return res.status(500).json({ error: "Could not determine file duration." });
       }
 
@@ -38,60 +36,58 @@ router.post('/', upload.single('file'), async (req, res) => {
       const durationMinutes = Math.ceil(durationSeconds / 60);
       const requiredTokens = durationMinutes * 2;
 
-      console.log(`⏱️ Duration: ${durationMinutes} min → 🔻 Needs ${requiredTokens} tokens`);
+      console.log(`⏱️ Duration: ${durationMinutes} min → 🔻 Requires ${requiredTokens} tokens`);
 
-      // Step 2: Determine token source
+      // STEP 1: Determine user type
       const nonce = req.headers['x-wp-nonce'];
       const visitorIp = req.headers['x-visitor-ip'] || req.headers['x-forwarded-for']?.split(',')[0]?.trim();
-      const isLoggedIn = nonce && typeof nonce === 'string';
+      const isLoggedIn = typeof nonce === 'string' && nonce.length > 0;
 
-      let tokenEndpoint = '';
-      const headers = { 'Content-Type': 'application/json' };
+      const tokenHeaders = { 'Content-Type': 'application/json' };
+      let tokenEndpoint = "";
 
       if (isLoggedIn) {
         tokenEndpoint = 'https://doitwithai.org/wp-json/mcq/v1/tokens';
-        headers['X-WP-Nonce'] = nonce;
+        tokenHeaders['X-WP-Nonce'] = nonce;
       } else if (visitorIp) {
         tokenEndpoint = 'https://doitwithai.onrender.com/api/visitor-tokens';
-        headers['X-Visitor-IP'] = visitorIp;
+        tokenHeaders['X-Visitor-IP'] = visitorIp;
       } else {
         fs.unlink(filePath, () => {});
-        return res.status(400).json({ error: 'Unable to identify user or visitor IP.' });
+        return res.status(400).json({ error: 'Unable to determine visitor identity.' });
       }
 
-      // Step 3: Fetch token balance
+      // STEP 2: Fetch available tokens
       try {
         const tokenRes = await fetch(tokenEndpoint, {
           method: 'GET',
-          headers
+          headers: tokenHeaders,
         });
 
         const tokenData = await tokenRes.json();
         const available = parseInt(tokenData.tokens || 0);
 
-        console.log(`🪙 Available: ${available}, Required: ${requiredTokens}`);
+        console.log(`🪙 Available tokens: ${available}, Needed: ${requiredTokens}`);
 
         if (available < requiredTokens) {
           fs.unlink(filePath, () => {});
           return res.status(403).json({
-            error: `❌ Not enough tokens. You need ${requiredTokens}, but only have ${available}.`
+            error: `❌ Not enough tokens. You need ${requiredTokens}, but have ${available}.`
           });
         }
-
       } catch (tokenErr) {
-        console.error("❌ Token check error:", tokenErr);
+        console.error("❌ Token check failed:", tokenErr);
         fs.unlink(filePath, () => {});
-        return res.status(500).json({ error: 'Failed to verify token balance' });
+        return res.status(500).json({ error: 'Token verification failed.' });
       }
 
-      // Step 4: Transcribe
+      // STEP 3: Transcribe
       console.log("🎧 Starting transcription...");
       const transcript = await transcribeAudio(filePath, originalName);
-
       fs.unlink(filePath, () => {});
       console.log("✅ Transcription complete.");
 
-      // Step 5: Return result
+      // STEP 4: Respond with transcript and duration
       res.json({ text: transcript, durationMinutes });
     });
 
