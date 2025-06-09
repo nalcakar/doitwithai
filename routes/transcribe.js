@@ -3,17 +3,10 @@ import multer from 'multer';
 import fs from 'fs';
 import path from 'path';
 import ffmpeg from 'fluent-ffmpeg';
-import fetch from 'node-fetch';
 import { transcribeAudio } from '../utils/whisperClient.js';
-import { Redis } from '@upstash/redis';
 
 const router = express.Router();
 const upload = multer({ dest: 'uploads/' });
-
-const redis = new Redis({
-  url: process.env.UPSTASH_REDIS_REST_URL,
-  token: process.env.UPSTASH_REDIS_REST_TOKEN
-});
 
 router.post('/', upload.single('file'), async (req, res) => {
   try {
@@ -32,6 +25,7 @@ router.post('/', upload.single('file'), async (req, res) => {
       size: req.file.size
     });
 
+    // Step 1: Detect duration using ffprobe
     ffmpeg.ffprobe(filePath, async (err, metadata) => {
       if (err) {
         console.error("❌ ffprobe error:", err);
@@ -40,83 +34,17 @@ router.post('/', upload.single('file'), async (req, res) => {
 
       const durationSeconds = metadata.format.duration || 0;
       const durationMinutes = Math.ceil(durationSeconds / 60);
-      const tokenCost = durationMinutes * 2;
 
-      console.log(`⏱️ Duration: ${durationMinutes} min → Token cost: ${tokenCost}`);
+      console.log(`⏱️ Duration: ${durationMinutes} min → should deduct ${durationMinutes * 2} tokens`);
 
-      let hasEnoughTokens = false;
-      let userType = 'visitor';
-
-      const nonce = req.headers['x-wp-nonce'];
-
-      // ✅ Try member token check first
-      if (nonce) {
-        try {
-          const wpBase = process.env.WP_BASE_URL || 'https://doitwithai.org';
-          const wpRes = await fetch(`${wpBase}/wp-json/mcq/v1/tokens`, {
-            headers: { 'X-WP-Nonce': nonce },
-            credentials: 'same-origin'
-          });
-
-          const wpText = await wpRes.text();
-          console.log("📦 Raw WP Response:", wpText);
-
-          let wpData;
-          try {
-            wpData = JSON.parse(wpText);
-          } catch (e) {
-            console.error("❌ Failed to parse WP response:", e);
-            wpData = {};
-          }
-
-          if (wpData.code === 'rest_cookie_invalid_nonce') {
-            console.warn("⚠️ Invalid nonce, treating as visitor.");
-          } else {
-            const tokenBalance = parseInt(wpData.tokens);
-            console.log("🪙 Member tokens:", tokenBalance);
-
-            if (!isNaN(tokenBalance) && tokenBalance >= tokenCost) {
-              hasEnoughTokens = true;
-              userType = 'member';
-            } else {
-              console.warn("❌ Member does not have enough tokens.");
-            }
-          }
-        } catch (err) {
-          console.error("❌ Failed to check member tokens:", err);
-        }
-      }
-
-      // ✅ If still false, fallback to visitor check
-      if (!hasEnoughTokens) {
-        const ip = req.headers['x-forwarded-for']?.split(',')[0] || req.socket.remoteAddress;
-        const redisKey = `visitor_tokens_${ip}`;
-
-        try {
-          const used = parseInt(await redis.get(redisKey)) || 0;
-          console.log(`📊 Visitor IP ${ip}, used ${used}, needs ${tokenCost}`);
-
-          if ((used + tokenCost) <= 20) {
-            hasEnoughTokens = true;
-            userType = 'visitor';
-          } else {
-            console.warn("❌ Visitor over daily limit.");
-          }
-        } catch (err) {
-          console.error("❌ Visitor token check failed:", err);
-        }
-      }
-
-      if (!hasEnoughTokens) {
-        fs.unlink(filePath, () => {});
-        return res.status(403).json({ error: "Not enough tokens to transcribe this file." });
-      }
-
-      console.log(`🎧 Starting transcription for ${userType}...`);
+      // Step 2: Transcribe
+      console.log("🎧 Starting transcription...");
       const transcript = await transcribeAudio(filePath, originalName);
-      fs.unlink(filePath, () => {});
+
+      fs.unlink(filePath, () => {}); // Clean up uploaded file
       console.log("✅ Transcription complete.");
 
+      // Step 3: Return transcript + duration for frontend deduction
       res.json({ text: transcript, durationMinutes });
     });
 
