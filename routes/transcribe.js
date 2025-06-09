@@ -30,57 +30,61 @@ router.post('/', upload.single('file'), async (req, res) => {
     ffmpeg.ffprobe(filePath, async (err, metadata) => {
       if (err) {
         console.error("❌ ffprobe error:", err);
-        fs.unlink(filePath, () => {});
         return res.status(500).json({ error: "Could not determine file duration." });
       }
 
       const durationSeconds = metadata.format.duration || 0;
       const durationMinutes = Math.ceil(durationSeconds / 60);
-      const tokensToDeduct = durationMinutes * 2;
+      const requiredTokens = durationMinutes * 2;
 
-      console.log(`⏱️ Duration: ${durationMinutes} min → 🔻 ${tokensToDeduct} tokens`);
+      console.log(`⏱️ Duration: ${durationMinutes} min → 🔻 Needs ${requiredTokens} tokens`);
 
-      // Step 2: Deduct tokens before transcription
+      // Step 2: Check token balance
       const nonce = req.headers['x-wp-nonce'];
       const isLoggedIn = typeof nonce === 'string' && nonce.length > 0;
 
-      const deductEndpoint = isLoggedIn
-        ? 'https://doitwithai.org/wp-json/mcq/v1/deduct-tokens'
-        : 'https://doitwithai.onrender.com/api/visitor-tokens/deduct';
+      const tokenEndpoint = isLoggedIn
+        ? 'https://doitwithai.org/wp-json/mcq/v1/tokens'
+        : 'https://doitwithai.onrender.com/api/visitor-tokens';
 
-      const deductHeaders = {
+      const tokenHeaders = {
         'Content-Type': 'application/json',
         ...(isLoggedIn ? { 'X-WP-Nonce': nonce } : {})
       };
 
-      console.log("🔁 Attempting token deduction from:", deductEndpoint);
-
-      const deductRes = await fetch(deductEndpoint, {
-        method: 'POST',
-        headers: deductHeaders,
-        body: JSON.stringify({ count: tokensToDeduct })
-      });
-
-      let deductData = {};
       try {
-        deductData = await deductRes.json();
-      } catch (parseErr) {
-        console.error("❌ Failed to parse deduction response:", parseErr);
-      }
+        const tokenRes = await fetch(tokenEndpoint, {
+          method: 'GET',
+          headers: tokenHeaders
+        });
 
-      console.log("📬 Deduction response:", deductData);
+        const tokenData = await tokenRes.json();
+        const available = parseInt(tokenData.tokens || 0);
 
-      if (!deductRes.ok) {
+        console.log(`🪙 Available: ${available}, Needed: ${requiredTokens}`);
+
+        if (available < requiredTokens) {
+          fs.unlink(filePath, () => {}); // cleanup
+          return res.status(403).json({
+            error: `❌ Not enough tokens. You need ${requiredTokens}, but only have ${available}.`
+          });
+        }
+
+      } catch (tokenErr) {
+        console.error("❌ Failed to check token balance:", tokenErr);
         fs.unlink(filePath, () => {});
-        return res.status(403).json({ error: deductData.error || 'Token deduction failed.' });
+        return res.status(500).json({ error: 'Token check failed' });
       }
 
-      // Step 3: Proceed with transcription
+      // Step 3: Transcribe
       console.log("🎧 Starting transcription...");
       const transcript = await transcribeAudio(filePath, originalName);
+
       fs.unlink(filePath, () => {});
       console.log("✅ Transcription complete.");
-      res.json({ text: transcript });
+
+      // Step 4: Return result
+      res.json({ text: transcript, durationMinutes });
     });
 
   } catch (err) {
