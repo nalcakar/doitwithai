@@ -26,7 +26,7 @@ router.post('/', upload.single('file'), async (req, res) => {
       size: req.file.size
     });
 
-    ffmpeg.ffprobe(filePath, async (err, metadata) => {
+   ffmpeg.ffprobe(filePath, async (err, metadata) => {
   if (err) {
     console.error("❌ ffprobe error:", err);
     return res.status(500).json({ error: "Could not determine file duration." });
