@@ -44,7 +44,9 @@ router.post('/', upload.single('file'), async (req, res) => {
       const nonce = req.headers["x-wp-nonce"];
       if (nonce) {
         try {
-          const wpRes = await fetch(`${process.env.WP_BASE_URL}/wp-json/mcq/v1/tokens`, {
+        const wpBase = process.env.WP_BASE_URL || 'https://doitwithai.org';
+const wpRes = await fetch(`${wpBase}/wp-json/mcq/v1/tokens`, {
+
             headers: {
               "X-WP-Nonce": nonce
             },
