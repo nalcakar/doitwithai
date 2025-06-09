@@ -23,8 +23,7 @@ router.post('/', upload.single('file'), async (req, res) => {
     }
 
     const filePath = req.file.path;
-    const originalName = req.file.originalname;satisfies
-  
+    const originalName = req.file.originalname;
 
     console.log("🧾 Uploaded file:", {
       path: filePath,
@@ -47,7 +46,6 @@ router.post('/', upload.single('file'), async (req, res) => {
 
       let hasEnoughTokens = false;
 
-      // ✅ Case 1: Logged-in user
       const nonce = req.headers['x-wp-nonce'];
       if (nonce) {
         try {
@@ -58,17 +56,17 @@ router.post('/', upload.single('file'), async (req, res) => {
           });
 
           const wpText = await wpRes.text();
-console.log("📦 Raw WP Response:", wpText);
-let wpData;
-try {
-  wpData = JSON.parse(wpText);
-} catch (e) {
-  console.error("❌ Failed to parse WP response:", e);
-  wpData = {};
-}
-const tokenBalance = parseInt(wpData.tokens);
+          console.log("📦 Raw WP Response:", wpText);
 
+          let wpData;
+          try {
+            wpData = JSON.parse(wpText);
+          } catch (e) {
+            console.error("❌ Failed to parse WP response:", e);
+            wpData = {};
+          }
 
+          const tokenBalance = parseInt(wpData.tokens);
           console.log("🪙 Member tokens:", tokenBalance);
 
           if (wpRes.ok && !isNaN(tokenBalance) && tokenBalance >= tokenCost) {
@@ -80,7 +78,7 @@ const tokenBalance = parseInt(wpData.tokens);
           console.error("❌ Failed to check member tokens:", err);
         }
       } else {
-        // ✅ Case 2: Visitor (via Redis)
+        // Visitor fallback
         const ip = req.headers['x-forwarded-for']?.split(',')[0] || req.socket.remoteAddress;
         const redisKey = `visitor_tokens_${ip}`;
         try {
@@ -96,13 +94,11 @@ const tokenBalance = parseInt(wpData.tokens);
         }
       }
 
-      // ❌ Not enough tokens
       if (!hasEnoughTokens) {
         fs.unlink(filePath, () => {});
         return res.status(403).json({ error: "Not enough tokens to transcribe this file." });
       }
 
-      // ✅ Proceed with transcription
       console.log("🎧 Starting transcription...");
       const transcript = await transcribeAudio(filePath, originalName);
       fs.unlink(filePath, () => {});
