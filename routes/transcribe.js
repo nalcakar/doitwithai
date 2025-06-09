@@ -2,7 +2,8 @@ import express from 'express';
 import multer from 'multer';
 import fs from 'fs';
 import path from 'path';
-import mm from 'music-metadata'; // ✅ npm install music-metadata
+import { parseFile } from 'music-metadata';
+// ✅ npm install music-metadata
 import { transcribeAudio } from '../utils/whisperClient.js';
 import { Redis } from '@upstash/redis';
 import fetch from 'node-fetch';
@@ -26,7 +27,8 @@ router.post('/', upload.single('file'), async (req, res) => {
     const originalName = req.file.originalname;
 
     // ✅ 1. Extract duration
-    const metadata = await mm.parseFile(filePath);
+    const metadata = await parseFile(filePath);
+
     const durationSec = Math.ceil(metadata.format.duration || 0);
     const durationMin = Math.ceil(durationSec / 60);
     const tokensToDeduct = 2 * durationMin;
