@@ -27,75 +27,63 @@ router.post('/', upload.single('file'), async (req, res) => {
     });
 
     ffmpeg.ffprobe(filePath, async (err, metadata) => {
-      if (err) {
-        console.error("❌ ffprobe error:", err);
-        return res.status(500).json({ error: "Could not determine file duration." });
-      }
+  if (err) {
+    console.error("❌ ffprobe error:", err);
+    return res.status(500).json({ error: "Could not determine file duration." });
+  }
 
-      const durationSeconds = metadata.format.duration || 0;
-      const durationMinutes = Math.ceil(durationSeconds / 60);
-      const tokenCost = durationMinutes * 2;
+  const durationSeconds = metadata.format.duration || 0;
+  const durationMinutes = Math.ceil(durationSeconds / 60);
+  const tokenCost = durationMinutes * 2;
 
-      console.log(`⏱️ Duration: ${durationMinutes} min → Token cost: ${tokenCost}`);
+  console.log(`⏱️ Duration: ${durationMinutes} min → Token cost: ${tokenCost}`);
 
-      let hasEnoughTokens = false;
+  // ✅ Check token balance BEFORE transcribing
+  let hasEnoughTokens = false;
 
-      // ✅ Case 1: Logged-in user
-      const nonce = req.headers["x-wp-nonce"];
-      if (nonce) {
-        try {
-        const wpBase = process.env.WP_BASE_URL || 'https://doitwithai.org';
-const wpRes = await fetch(`${wpBase}/wp-json/mcq/v1/tokens`, {
+  if (req.headers["x-wp-nonce"]) {
+    // Logged-in member
+    try {
+      const wpRes = await fetch(`${process.env.WP_BASE_URL}/wp-json/mcq/v1/tokens`, {
+        headers: {
+          "X-WP-Nonce": req.headers["x-wp-nonce"],
+        },
+      });
 
-            headers: {
-              "X-WP-Nonce": nonce
-            },
-            credentials: "include"
-          });
+      const data = await wpRes.json();
+      hasEnoughTokens = wpRes.ok && data.tokens >= tokenCost;
+    } catch (err) {
+      console.error("❌ Member token check error:", err);
+    }
+  } else {
+    // Visitor
+    const ip = req.headers["x-forwarded-for"]?.split(',')[0] || req.socket.remoteAddress;
+    const redisKey = `visitor_tokens_${ip}`;
+    try {
+      const Redis = (await import('@upstash/redis')).Redis;
+      const redis = new Redis({
+        url: process.env.UPSTASH_REDIS_REST_URL,
+        token: process.env.UPSTASH_REDIS_REST_TOKEN
+      });
+      const used = parseInt(await redis.get(redisKey)) || 0;
+      hasEnoughTokens = (used + tokenCost) <= 20;
+    } catch (err) {
+      console.error("❌ Visitor token check error:", err);
+    }
+  }
 
-          const wpData = await wpRes.json();
-          console.log("🪙 Member tokens:", wpData.tokens);
+  if (!hasEnoughTokens) {
+    fs.unlink(filePath, () => {}); // Cleanup
+    return res.status(403).json({ error: "Not enough tokens to transcribe this file." });
+  }
 
-        const tokenBalance = parseInt(wpData.tokens);
-if (wpRes.ok && !isNaN(tokenBalance) && tokenBalance >= tokenCost) {
-  hasEnoughTokens = true;
-} else {
-            console.warn("❌ Member does not have enough tokens.");
-          }
-        } catch (err) {
-          console.error("❌ Failed to check member tokens:", err);
-        }
-      } else {
-        // ✅ Case 2: Visitor (no nonce present)
-        const ip = req.headers["x-forwarded-for"]?.split(',')[0] || req.socket.remoteAddress;
-        const Redis = (await import('@upstash/redis')).Redis;
-        const redis = new Redis({
-          url: process.env.UPSTASH_REDIS_REST_URL,
-          token: process.env.UPSTASH_REDIS_REST_TOKEN
-        });
+  // ✅ Proceed with transcription
+  const transcript = await transcribeAudio(filePath, originalName);
+  fs.unlink(filePath, () => {});
+  console.log("✅ Transcription complete.");
+  res.json({ text: transcript, durationMinutes });
+});
 
-        const redisKey = `visitor_tokens_${ip}`;
-        const used = parseInt(await redis.get(redisKey)) || 0;
-        console.log(`📊 Visitor used ${used}, needs ${tokenCost}`);
-
-        if ((used + tokenCost) <= 20) {
-          hasEnoughTokens = true;
-        } else {
-          console.warn("❌ Visitor over daily limit.");
-        }
-      }
-
-      if (!hasEnoughTokens) {
-        fs.unlink(filePath, () => {});
-        return res.status(403).json({ error: "Not enough tokens to transcribe this file." });
-      }
-
-      // ✅ Transcribe
-      const transcript = await transcribeAudio(filePath, originalName);
-      fs.unlink(filePath, () => {});
-      console.log("✅ Transcription complete.");
-      res.json({ text: transcript, durationMinutes });
-    });
 
   } catch (err) {
     console.error("❌ Transcription route error:", err);
