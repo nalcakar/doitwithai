@@ -23,7 +23,8 @@ router.post('/', upload.single('file'), async (req, res) => {
     }
 
     const filePath = req.file.path;
-    const originalName = req.file.originalname;
+    const originalName = req.file.originalname;satisfies
+  
 
     console.log("🧾 Uploaded file:", {
       path: filePath,
@@ -56,8 +57,17 @@ router.post('/', upload.single('file'), async (req, res) => {
             credentials: 'include'
           });
 
-          const wpData = await wpRes.json();
-          const tokenBalance = parseInt(wpData.tokens);
+          const wpText = await wpRes.text();
+console.log("📦 Raw WP Response:", wpText);
+let wpData;
+try {
+  wpData = JSON.parse(wpText);
+} catch (e) {
+  console.error("❌ Failed to parse WP response:", e);
+  wpData = {};
+}
+const tokenBalance = parseInt(wpData.tokens);
+
 
           console.log("🪙 Member tokens:", tokenBalance);
 
