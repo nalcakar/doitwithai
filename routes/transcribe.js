@@ -3,7 +3,6 @@ import multer from 'multer';
 import fs from 'fs';
 import path from 'path';
 import ffmpeg from 'fluent-ffmpeg';
-import fetch from 'node-fetch';
 import { transcribeAudio } from '../utils/whisperClient.js';
 
 const router = express.Router();
@@ -35,53 +34,18 @@ router.post('/', upload.single('file'), async (req, res) => {
 
       const durationSeconds = metadata.format.duration || 0;
       const durationMinutes = Math.ceil(durationSeconds / 60);
-      const tokensToDeduct = durationMinutes * 2;
 
-      console.log(`⏱️ Duration: ${durationMinutes} min → 🔻 ${tokensToDeduct} tokens`);
+      console.log(`⏱️ Duration: ${durationMinutes} min → should deduct ${durationMinutes * 2} tokens`);
 
-      // Step 2: Decide whether user is logged in
-      const nonce = req.headers['x-wp-nonce'];
-      const isLoggedIn = typeof nonce === 'string' && nonce.length > 0;
-
-      const deductEndpoint = isLoggedIn
-        ? 'https://doitwithai.org/wp-json/mcq/v1/deduct-tokens'
-        : 'https://doitwithai.onrender.com/api/visitor-tokens/deduct';
-
-      const deductHeaders = {
-        'Content-Type': 'application/json',
-        ...(isLoggedIn ? { 'X-WP-Nonce': nonce } : {})
-      };
-
-      console.log("🔁 Deducting tokens from:", deductEndpoint);
-      console.log("📦 Payload:", { count: tokensToDeduct });
-
-      const deductRes = await fetch(deductEndpoint, {
-        method: 'POST',
-        headers: deductHeaders,
-        body: JSON.stringify({ count: tokensToDeduct })
-      });
-
-      let deductData = {};
-      try {
-        deductData = await deductRes.json();
-      } catch (parseErr) {
-        console.error("❌ Failed to parse deduction response JSON:", parseErr);
-      }
-
-      console.log("📬 Deduct response:", deductData);
-
-      if (!deductRes.ok) {
-        console.error("❌ Token deduction failed:", deductData);
-        return res.status(403).json({ error: deductData.error || 'Token deduction failed.' });
-      }
-
-      // Step 3: Transcribe
+      // Step 2: Transcribe
       console.log("🎧 Starting transcription...");
       const transcript = await transcribeAudio(filePath, originalName);
 
       fs.unlink(filePath, () => {}); // Clean up uploaded file
       console.log("✅ Transcription complete.");
-      res.json({ text: transcript });
+
+      // Step 3: Return transcript + duration for frontend deduction
+      res.json({ text: transcript, durationMinutes });
     });
 
   } catch (err) {
