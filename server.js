@@ -16,7 +16,7 @@ dotenv.config();
 
 const app = express();
 
-import cors from 'cors';
+
 
 const allowedOrigin = 'https://doitwithai.org';
 
