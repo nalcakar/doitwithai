@@ -4,117 +4,52 @@ import fs from 'fs';
 import path from 'path';
 import ffmpeg from 'fluent-ffmpeg';
 import { transcribeAudio } from '../utils/whisperClient.js';
-import { getVisitorTokenCount, deductVisitorTokens } from '../routes/visitorTokens.js';
-
 
 const router = express.Router();
 const upload = multer({ dest: 'uploads/' });
 
-function getDurationInMinutes(filePath) {
-  return new Promise((resolve, reject) => {
-    ffmpeg.ffprobe(filePath, (err, metadata) => {
-      if (err) {
-        return reject(err);
-      }
-      const durationSeconds = metadata?.format?.duration || 0;
-      const minutes = Math.ceil(durationSeconds / 60);
-      resolve(minutes);
-    });
-  });
-}
-
 router.post('/', upload.single('file'), async (req, res) => {
   try {
     if (!req.file || !req.file.path) {
+      console.warn("⚠️ No file uploaded.");
       return res.status(400).json({ error: 'No file uploaded.' });
     }
 
     const filePath = req.file.path;
     const originalName = req.file.originalname;
 
-    const durationMinutes = await getDurationInMinutes(filePath);
-    const tokenCost = durationMinutes * 2;
+    console.log("🧾 Uploaded file:", {
+      path: filePath,
+      originalName,
+      mime: req.file.mimetype,
+      size: req.file.size
+    });
 
-    console.log(`⏱️ Duration: ${durationMinutes} minute(s) → 🔻 ${tokenCost} token(s)`);
-
-    let hasTokens = false;
-    let availableTokens = null;
-    let userType = "unknown";
-
-    // 🔐 Check member tokens via X-WP-Nonce header
-    const wpNonce = req.headers['x-wp-nonce'];
-    if (wpNonce) {
-      try {
-        const wpRes = await fetch("https://doitwithai.org/wp-json/mcq/v1/tokens", {
-          headers: {
-            'X-WP-Nonce': wpNonce,
-            'Content-Type': 'application/json'
-          },
-          credentials: 'include' // not strictly needed in server-side fetch
-        });
-        const tokenData = await wpRes.json();
-        console.log("🔐 Member token check:", tokenData);
-
-        if (wpRes.ok && typeof tokenData.tokens === 'number') {
-          availableTokens = tokenData.tokens;
-          userType = "member";
-          hasTokens = availableTokens >= tokenCost;
-        }
-      } catch (err) {
-        console.warn("❌ Member token check failed:", err.message);
+    // Step 1: Detect duration using ffprobe
+    ffmpeg.ffprobe(filePath, async (err, metadata) => {
+      if (err) {
+        console.error("❌ ffprobe error:", err);
+        return res.status(500).json({ error: "Could not determine file duration." });
       }
-    }
 
-    // 🧑‍🦲 If not a member or invalid nonce, check visitor token usage
-    if (!hasTokens) {
-      const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
-      availableTokens = await getVisitorTokenCount(ip);
-      userType = "visitor";
-      hasTokens = availableTokens >= tokenCost;
-      console.log(`❌ Visitor token check ${hasTokens ? "passed" : "failed"}. Used: ${availableTokens}, Cost: ${tokenCost}`);
-    }
+      const durationSeconds = metadata.format.duration || 0;
+      const durationMinutes = Math.ceil(durationSeconds / 60);
 
-    if (!hasTokens) {
-      fs.unlinkSync(filePath); // cleanup uploaded file
-      return res.status(403).json({
-        error: `Not enough tokens (${userType}). Required: ${tokenCost}, Available: ${availableTokens ?? 'unknown'}`
-      });
-    }
+      console.log(`⏱️ Duration: ${durationMinutes} min → should deduct ${durationMinutes * 2} tokens`);
 
-    // ✅ Transcribe with Whisper
-    const transcript = await transcribeAudio(filePath, originalName);
+      // Step 2: Transcribe
+      console.log("🎧 Starting transcription...");
+      const transcript = await transcribeAudio(filePath, originalName);
 
-    fs.unlinkSync(filePath); // cleanup after transcription
+      fs.unlink(filePath, () => {}); // Clean up uploaded file
+      console.log("✅ Transcription complete.");
 
-    // ✅ Deduct tokens after success
-    if (userType === "member") {
-      const wpUserRes = await fetch("https://doitwithai.org/wp-json/mcq/v1/deduct-tokens", {
-        method: "POST",
-        headers: {
-          'X-WP-Nonce': wpNonce,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ tokens: tokenCost }),
-        credentials: 'include'
-      });
-      const result = await wpUserRes.json();
-      console.log("🧾 Member token deduction:", result);
-    } else if (userType === "visitor") {
-      const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
-      await deductVisitorTokens(ip, tokenCost);
-      console.log("🧾 Visitor tokens deducted");
-    }
-
-    res.json({
-      text: transcript,
-      durationMinutes: durationMinutes
+      // Step 3: Return transcript + duration for frontend deduction
+      res.json({ text: transcript, durationMinutes });
     });
 
   } catch (err) {
-    console.error("❌ Transcription error:", err);
-    if (req.file?.path && fs.existsSync(req.file.path)) {
-      fs.unlinkSync(req.file.path); // cleanup on failure
-    }
+    console.error("❌ Transcription route error:", err);
     res.status(500).json({ error: 'Failed to transcribe audio.' });
   }
 });

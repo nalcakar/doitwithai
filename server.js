@@ -16,15 +16,7 @@ dotenv.config();
 
 const app = express();
 
-
-
-const allowedOrigin = 'https://doitwithai.org';
-
-app.use(cors({
-  origin: allowedOrigin,
-  credentials: true
-}));
-
+app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
 
