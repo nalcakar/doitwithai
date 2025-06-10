@@ -1,6 +1,6 @@
 import express from 'express';
 import multer from 'multer';
-import fs from 'fs';
+import fs from 'fs/promises';
 import ffmpeg from 'fluent-ffmpeg';
 import fetch from 'node-fetch';
 import { Redis } from '@upstash/redis';
@@ -11,102 +11,115 @@ const upload = multer({ dest: 'uploads/' });
 
 const redis = new Redis({
   url: process.env.UPSTASH_REDIS_REST_URL,
-  token: process.env.UPSTASH_REDIS_REST_TOKEN
+  token: process.env.UPSTASH_REDIS_REST_TOKEN,
 });
 
 const DAILY_LIMIT = 20;
 
-// --- UTIL: Reliable IP extraction ---
+// Helper: Get client IP reliably
 function getClientIP(req) {
   const forwarded = req.headers['x-forwarded-for'];
-  return forwarded ? forwarded.split(',')[0].trim() : req.connection?.remoteAddress || req.socket?.remoteAddress || 'unknown';
+  if (forwarded) return forwarded.split(',')[0].trim();
+  return req.connection?.remoteAddress || req.socket?.remoteAddress || 'unknown';
 }
 
-// --- UTIL: Clean up uploaded file ---
-function safeUnlink(filePath) {
-  fs.unlink(filePath, err => {
-    if (err) console.warn("⚠️ Could not remove file:", filePath, err);
+// Helper: Remove file asynchronously, log errors
+async function safeUnlink(filePath) {
+  try {
+    await fs.unlink(filePath);
+  } catch (err) {
+    console.warn(`⚠️ Could not remove file ${filePath}:`, err);
+  }
+}
+
+// Helper: Get audio duration in minutes
+function getAudioDuration(filePath) {
+  return new Promise((resolve, reject) => {
+    ffmpeg.ffprobe(filePath, (err, metadata) => {
+      if (err) return reject(err);
+      const durationSeconds = metadata.format?.duration || 0;
+      const durationMinutes = Math.ceil(durationSeconds / 60);
+      resolve(durationMinutes);
+    });
   });
 }
 
-// --- MAIN: Transcribe Route ---
+// Helper: Deduct tokens for visitor from Redis
+async function deductVisitorTokens(ip, cost) {
+  const redisKey = `visitor_tokens_${ip}`;
+  const used = parseInt(await redis.get(redisKey)) || 0;
+  if (used + cost > DAILY_LIMIT) {
+    throw new Error('Insufficient visitor tokens for transcription.');
+  }
+  await redis.incrby(redisKey, cost);
+  await redis.expire(redisKey, 86400);
+}
+
+// Helper: Deduct tokens for member via WordPress REST
+async function deductMemberTokens(baseUrl, nonce, cost) {
+  const response = await fetch(`${baseUrl}/wp-json/mcq/v1/deduct-tokens`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-WP-Nonce': nonce,
+    },
+    body: JSON.stringify({ count: cost }),
+  });
+  if (!response.ok) {
+    let error = 'Token deduction failed.';
+    try {
+      const data = await response.json();
+      error = data.error || error;
+    } catch {}
+    throw new Error(error);
+  }
+}
+
 router.post('/', upload.single('file'), async (req, res) => {
-  let filePath, originalName;
+  if (!req.file?.path) {
+    return res.status(400).json({ error: 'No file uploaded.' });
+  }
+
+  const filePath = req.file.path;
+  const originalName = req.file.originalname;
+  console.log('🧾 Uploaded file:', {
+    path: filePath,
+    originalName,
+    mime: req.file.mimetype,
+    size: req.file.size,
+  });
+
   try {
-    if (!req.file || !req.file.path) {
-      return res.status(400).json({ error: 'No file uploaded.' });
-    }
-
-    filePath = req.file.path;
-    originalName = req.file.originalname;
-
-    console.log("🧾 Uploaded file:", {
-      path: filePath,
-      originalName,
-      mime: req.file.mimetype,
-      size: req.file.size
-    });
-
-    // --- Step 1: Probe file for duration ---
-    const durationInfo = await new Promise((resolve, reject) => {
-      ffmpeg.ffprobe(filePath, (err, metadata) => {
-        if (err) return reject(err);
-        resolve(metadata);
-      });
-    });
-
-    const durationSeconds = durationInfo.format.duration || 0;
-    const durationMinutes = Math.ceil(durationSeconds / 60);
+    // Get duration and calculate token cost
+    const durationMinutes = await getAudioDuration(filePath);
     const tokenCost = durationMinutes * 2;
     console.log(`⏱️ Duration: ${durationMinutes} min → 🔻 ${tokenCost} tokens`);
 
-    // --- Step 2: Check tokens ---
-    const isLoggedIn = !!req.headers['x-wp-nonce'];
+    // Check user type and deduct tokens accordingly
+    const nonce = req.headers['x-wp-nonce'];
+    const isLoggedIn = Boolean(nonce);
 
     if (!isLoggedIn) {
-      // --- Visitor logic with Redis token tracking ---
+      // Visitor logic
       const ip = getClientIP(req);
-      const redisKey = `visitor_tokens_${ip}`;
-      const used = parseInt(await redis.get(redisKey)) || 0;
-
-      if (used + tokenCost > DAILY_LIMIT) {
-        console.warn(`❌ Visitor limit: used ${used}, needs ${tokenCost}`);
-        safeUnlink(filePath);
-        return res.status(403).json({ error: 'Insufficient visitor tokens for transcription.' });
-      }
-      await redis.incrby(redisKey, tokenCost);
-      await redis.expire(redisKey, 86400); // 24hr
-
+      await deductVisitorTokens(ip, tokenCost);
     } else {
-      // --- Member logic: Deduct tokens via WP REST ---
-      const verifyRes = await fetch(`${process.env.BASE_URL}/wp-json/mcq/v1/deduct-tokens`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-WP-Nonce': req.headers['x-wp-nonce']
-        },
-        body: JSON.stringify({ count: tokenCost })
-      });
-      if (!verifyRes.ok) {
-        const error = await verifyRes.json().catch(() => ({}));
-        safeUnlink(filePath);
-        return res.status(403).json({ error: error?.error || 'Token deduction failed.' });
-      }
+      // Member logic
+      await deductMemberTokens(process.env.BASE_URL, nonce, tokenCost);
     }
 
-    // --- Step 3: Transcribe if allowed ---
-    console.log("🎧 Starting transcription...");
+    // Transcribe audio
+    console.log('🎧 Starting transcription...');
     const transcript = await transcribeAudio(filePath, originalName);
-    safeUnlink(filePath);
-    console.log("✅ Transcription complete.");
+    console.log('✅ Transcription complete.');
 
-    // --- Step 4: Respond with transcript ---
-    return res.json({ text: transcript, durationMinutes });
-
+    // Respond with transcription and duration
+    res.json({ text: transcript, durationMinutes });
   } catch (err) {
-    console.error("❌ Transcription route error:", err);
-    if (filePath) safeUnlink(filePath);
-    return res.status(500).json({ error: 'Failed to transcribe audio.' });
+    console.error('❌ Transcription error:', err.message);
+    res.status(err.message.includes('Insufficient') || err.message.includes('Token deduction') ? 403 : 500).json({ error: err.message });
+  } finally {
+    await safeUnlink(filePath);
   }
 });
 
