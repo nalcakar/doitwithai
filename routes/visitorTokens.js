@@ -46,8 +46,16 @@ router.post('/deduct', async (req, res) => {
     const current = parseInt(await redis.get(redisKey)) || 0;
 
     if (current + count > DAILY_LIMIT) {
-      console.warn(`❌ Over limit for ${ip}: current ${current}, requested ${count}`);
-      return res.status(403).json({ error: 'Daily token limit exceeded' });
+      // ❗ Over limit — force token count to max (simulate balance = 0)
+      await redis.set(redisKey, DAILY_LIMIT);
+      await redis.expire(redisKey, 86400); // keep expiry intact
+
+      console.warn(`⚠️ Over limit: setting tokens to max (${DAILY_LIMIT}) for ${ip}`);
+      return res.status(200).json({
+        success: true,
+        warning: 'Over limit — tokens forcibly set to 0',
+        remaining: 0
+      });
     }
 
     await redis.incrby(redisKey, count);
