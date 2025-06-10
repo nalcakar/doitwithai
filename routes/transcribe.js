@@ -4,7 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import ffmpeg from 'fluent-ffmpeg';
 import { transcribeAudio } from '../utils/whisperClient.js';
-import { checkVisitorTokens, incrementVisitorUsage } from './visitorToken.js'; // ✅ FIXED
+import { checkVisitorTokens, incrementVisitorUsage } from './visitorTokens.js'; // ✅ FIXED
 import axios from 'axios';
 
 const router = express.Router();
