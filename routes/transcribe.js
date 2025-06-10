@@ -17,10 +17,25 @@ const redis = new Redis({
 
 const DAILY_LIMIT = 20;
 
-// ✅ IP extraction
+// ✅ Extract client IP for visitors
 function getClientIP(req) {
   const forwarded = req.headers['x-forwarded-for'];
   return forwarded ? forwarded.split(',')[0].trim() : req.connection?.remoteAddress || req.socket?.remoteAddress || 'unknown';
+}
+
+// ✅ Check nonce validity via WordPress
+async function verifyUserLogin(nonce) {
+  if (!nonce) return false;
+
+  try {
+    const res = await fetch(`${process.env.BASE_URL}/wp-json/wp/v2/users/me`, {
+      headers: { 'X-WP-Nonce': nonce }
+    });
+    return res.ok;
+  } catch (e) {
+    console.error("❌ Error verifying nonce with WP:", e);
+    return false;
+  }
 }
 
 router.post('/', upload.single('file'), async (req, res) => {
@@ -40,7 +55,7 @@ router.post('/', upload.single('file'), async (req, res) => {
       size: req.file.size
     });
 
-    // Step 1: Detect duration (NEEDED for cost calculation)
+    // Step 1: Detect duration for token cost
     ffmpeg.ffprobe(filePath, async (err, metadata) => {
       if (err) {
         console.error("❌ ffprobe error:", err);
@@ -54,51 +69,50 @@ router.post('/', upload.single('file'), async (req, res) => {
 
       console.log(`⏱️ Duration: ${durationMinutes} min → 🔻 ${tokenCost} tokens`);
 
-      const isLoggedIn = !!req.headers['x-wp-nonce'];
+      const nonce = req.headers['x-wp-nonce'] || '';
+      const isLoggedIn = await verifyUserLogin(nonce);
 
-      // ---------- VISITOR LOGIC ----------
+      // ---------- VISITOR ----------
       if (!isLoggedIn) {
         const ip = getClientIP(req);
         const redisKey = `visitor_tokens_${ip}`;
         const current = parseInt(await redis.get(redisKey)) || 0;
 
-        // Check token limit BEFORE deduction
         if (current + tokenCost > DAILY_LIMIT) {
           console.warn(`❌ Visitor over limit: used ${current}, needs ${tokenCost}`);
           fs.unlink(filePath, () => {});
           return res.status(403).json({ error: 'Insufficient visitor tokens for transcription.' });
         }
 
-        // Deduct tokens for visitor (AFTER check)
         await redis.incrby(redisKey, tokenCost);
-        await redis.expire(redisKey, 86400); // 24 hours
+        await redis.expire(redisKey, 86400); // 24h
+      }
 
-      // ---------- MEMBER LOGIC ----------
-      } else {
-        // Check and deduct tokens atomically via WP API
+      // ---------- MEMBER ----------
+      else {
         const verifyRes = await fetch(`${process.env.BASE_URL}/wp-json/mcq/v1/deduct-tokens`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'X-WP-Nonce': req.headers['x-wp-nonce']
+            'X-WP-Nonce': nonce
           },
           body: JSON.stringify({ count: tokenCost })
         });
 
         if (!verifyRes.ok) {
-          const error = await verifyRes.json();
+          const errorText = await verifyRes.text();
+          console.error("❌ WP token deduction failed:", errorText);
           fs.unlink(filePath, () => {});
-          return res.status(403).json({ error: error?.error || 'Token deduction failed.' });
+          return res.status(403).json({ error: 'Token deduction failed.' });
         }
       }
 
-      // ---------- SAFE TO TRANSCRIBE NOW ----------
+      // ---------- Transcribe ----------
       console.log("🎧 Starting transcription...");
       const transcript = await transcribeAudio(filePath, originalName);
       fs.unlink(filePath, () => {});
       console.log("✅ Transcription complete.");
 
-      // ---------- RETURN RESULT ----------
       res.json({ text: transcript, durationMinutes });
     });
 
