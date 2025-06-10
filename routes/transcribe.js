@@ -3,136 +3,97 @@ import multer from 'multer';
 import fs from 'fs';
 import path from 'path';
 import ffmpeg from 'fluent-ffmpeg';
-import fetch from 'node-fetch';
-import { Redis } from '@upstash/redis';
 import { transcribeAudio } from '../utils/whisperClient.js';
+import { checkVisitorTokens, incrementVisitorUsage } from '../utils/visitorToken.js';
+import axios from 'axios';
 
 const router = express.Router();
 const upload = multer({ dest: 'uploads/' });
 
-const redis = new Redis({
-  url: process.env.UPSTASH_REDIS_REST_URL,
-  token: process.env.UPSTASH_REDIS_REST_TOKEN
-});
-
-const DAILY_LIMIT = 20;
-
-// ✅ Extract client IP for visitor identification
-function getClientIP(req) {
-  const forwarded = req.headers['x-forwarded-for'];
-  return forwarded ? forwarded.split(',')[0].trim() : req.connection?.remoteAddress || req.socket?.remoteAddress || 'unknown';
-}
-
-// ✅ Validate nonce with WordPress
-async function verifyUserLogin(nonce) {
-  if (!nonce) return false;
-
+// Helper to verify WP nonce and get user info
+async function verifyNonce(nonce) {
   try {
-    const res = await fetch(`${process.env.BASE_URL}/wp-json/custom/v1/verify-nonce`, {
-      method: "POST",
-      headers: {
-        "X-WP-Nonce": nonce,
-        "Content-Type": "application/json"
+    const response = await axios.post(
+      'https://doitwithai.org/wp-json/custom/v1/verify-nonce',
+      {},
+      {
+        headers: {
+          'X-WP-Nonce': nonce,
+          'Content-Type': 'application/json',
+        },
+        withCredentials: true,
       }
-    });
-
-    const text = await res.text();
-    console.log("🧪 WP verify response:", res.status, text);
-
-    return res.ok;
+    );
+    return response.data;
   } catch (err) {
-    console.error("❌ Nonce verify failed:", err);
-    return false;
+    return null;
   }
 }
 
-
-// ✅ Main route
 router.post('/', upload.single('file'), async (req, res) => {
   try {
-    // Log received headers
-    console.log("📥 Incoming headers:", req.headers);
+    const file = req.file;
+    const nonce = req.headers['x-wp-nonce'];
 
-    if (!req.file || !req.file.path) {
+    if (!file || !file.path) {
       console.warn("⚠️ No file uploaded.");
       return res.status(400).json({ error: 'No file uploaded.' });
     }
 
-    const filePath = req.file.path;
-    const originalName = req.file.originalname;
-
     console.log("🧾 Uploaded file:", {
-      path: filePath,
-      originalName,
-      mime: req.file.mimetype,
-      size: req.file.size
+      path: file.path,
+      originalName: file.originalname,
+      mime: file.mimetype,
+      size: file.size
     });
 
-    // Step 1: Detect duration for token calculation
-    ffmpeg.ffprobe(filePath, async (err, metadata) => {
+    // Step 1: Detect audio duration
+    ffmpeg.ffprobe(file.path, async (err, metadata) => {
       if (err) {
         console.error("❌ ffprobe error:", err);
-        fs.unlink(filePath, () => {});
         return res.status(500).json({ error: "Could not determine file duration." });
       }
 
       const durationSeconds = metadata.format.duration || 0;
       const durationMinutes = Math.ceil(durationSeconds / 60);
-      const tokenCost = durationMinutes * 2;
+      const tokensNeeded = durationMinutes * 2;
 
-      console.log(`⏱️ Duration: ${durationMinutes} min → 🔻 ${tokenCost} tokens`);
+      console.log(`⏱️ Duration: ${durationMinutes} min → 🔻 ${tokensNeeded} tokens`);
 
-      const nonce = req.headers['x-wp-nonce'] || '';
-      const isLoggedIn = await verifyUserLogin(nonce);
-
-      // ---------- VISITOR ----------
-      if (!isLoggedIn) {
+      // Step 2: Check authentication
+      const user = await verifyNonce(nonce);
+      if (!user || !user.id) {
         console.log("🧍 Treating as visitor.");
-        const ip = getClientIP(req);
-        const redisKey = `visitor_tokens_${ip}`;
-        const current = parseInt(await redis.get(redisKey)) || 0;
 
-        if (current + tokenCost > DAILY_LIMIT) {
-          console.warn(`❌ Visitor over limit: used ${current}, needs ${tokenCost}`);
-          fs.unlink(filePath, () => {});
-          return res.status(403).json({ error: 'Insufficient visitor tokens for transcription.' });
+        const ip = req.headers['x-forwarded-for']?.split(',')[0] || req.ip;
+        const allowed = await checkVisitorTokens(ip, tokensNeeded);
+        if (!allowed) {
+          console.log(`❌ Visitor over limit: needs ${tokensNeeded}`);
+          fs.unlink(file.path, () => {});
+          return res.status(403).json({ error: 'Visitor token limit reached' });
         }
 
-        await redis.incrby(redisKey, tokenCost);
-        await redis.expire(redisKey, 86400); // 24h
-        console.log(`✅ Visitor tokens deducted: ${tokenCost}, new total = ${current + tokenCost}`);
+        await incrementVisitorUsage(ip, tokensNeeded);
+        console.log(`✅ Visitor allowed. Used ${tokensNeeded} tokens.`);
+
+      } else {
+        console.log(`👤 Logged in as user ID ${user.id}`);
+        // Token deduction happens on WordPress after success
       }
 
-      // ---------- MEMBER ----------
-      else {
-        console.log("👤 Treating as member.");
-        const verifyRes = await fetch(`${process.env.BASE_URL}/wp-json/mcq/v1/deduct-tokens`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-WP-Nonce': nonce
-          },
-          body: JSON.stringify({ count: tokenCost })
-        });
-
-        if (!verifyRes.ok) {
-          const errorText = await verifyRes.text();
-          console.error("❌ WP token deduction failed:", errorText);
-          fs.unlink(filePath, () => {});
-          return res.status(403).json({ error: 'Token deduction failed.' });
-        }
-
-        const result = await verifyRes.json();
-        console.log("✅ Member token deduction success:", result);
-      }
-
-      // ---------- TRANSCRIPTION ----------
+      // Step 3: Transcription
       console.log("🎧 Starting transcription...");
-      const transcript = await transcribeAudio(filePath, originalName);
-      fs.unlink(filePath, () => {});
+      const transcript = await transcribeAudio(file.path, file.originalname);
+
+      fs.unlink(file.path, () => {}); // Clean up uploaded file
       console.log("✅ Transcription complete.");
 
-      res.json({ text: transcript, durationMinutes });
+      res.json({
+        text: transcript,
+        durationMinutes,
+        tokens: tokensNeeded,
+        isLoggedIn: !!(user && user.id)
+      });
     });
 
   } catch (err) {
