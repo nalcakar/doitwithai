@@ -40,10 +40,11 @@ router.post('/', upload.single('file'), async (req, res) => {
       size: req.file.size
     });
 
-    // Step 1: Detect duration
+    // Step 1: Detect duration (NEEDED for cost calculation)
     ffmpeg.ffprobe(filePath, async (err, metadata) => {
       if (err) {
         console.error("❌ ffprobe error:", err);
+        fs.unlink(filePath, () => {});
         return res.status(500).json({ error: "Could not determine file duration." });
       }
 
@@ -55,24 +56,26 @@ router.post('/', upload.single('file'), async (req, res) => {
 
       const isLoggedIn = !!req.headers['x-wp-nonce'];
 
-      // Step 2: Token check
+      // ---------- VISITOR LOGIC ----------
       if (!isLoggedIn) {
-        // ✅ Visitor
         const ip = getClientIP(req);
         const redisKey = `visitor_tokens_${ip}`;
         const current = parseInt(await redis.get(redisKey)) || 0;
 
+        // Check token limit BEFORE deduction
         if (current + tokenCost > DAILY_LIMIT) {
           console.warn(`❌ Visitor over limit: used ${current}, needs ${tokenCost}`);
           fs.unlink(filePath, () => {});
           return res.status(403).json({ error: 'Insufficient visitor tokens for transcription.' });
         }
 
+        // Deduct tokens for visitor (AFTER check)
         await redis.incrby(redisKey, tokenCost);
         await redis.expire(redisKey, 86400); // 24 hours
 
+      // ---------- MEMBER LOGIC ----------
       } else {
-        // ✅ Logged-in Member
+        // Check and deduct tokens atomically via WP API
         const verifyRes = await fetch(`${process.env.BASE_URL}/wp-json/mcq/v1/deduct-tokens`, {
           method: 'POST',
           headers: {
@@ -89,13 +92,13 @@ router.post('/', upload.single('file'), async (req, res) => {
         }
       }
 
-      // Step 3: Transcribe
+      // ---------- SAFE TO TRANSCRIBE NOW ----------
       console.log("🎧 Starting transcription...");
       const transcript = await transcribeAudio(filePath, originalName);
       fs.unlink(filePath, () => {});
       console.log("✅ Transcription complete.");
 
-      // Step 4: Return result
+      // ---------- RETURN RESULT ----------
       res.json({ text: transcript, durationMinutes });
     });
 
