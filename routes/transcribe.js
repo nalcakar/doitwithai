@@ -32,7 +32,11 @@ async function verifyUserLogin(nonce) {
 
   try {
     const res = await fetch(`${process.env.BASE_URL}/wp-json/wp/v2/users/me`, {
-      headers: { 'X-WP-Nonce': nonce }
+      headers: {
+        'X-WP-Nonce': nonce,
+        'Content-Type': 'application/json'
+      },
+      credentials: 'include' // not necessary in Node, but harmless
     });
 
     const body = await res.text();
@@ -40,7 +44,7 @@ async function verifyUserLogin(nonce) {
 
     return res.ok;
   } catch (e) {
-    console.error("❌ Error verifying nonce with WP:", e);
+    console.error("❌ Error verifying nonce:", e);
     return false;
   }
 }
