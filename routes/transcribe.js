@@ -25,29 +25,27 @@ function getClientIP(req) {
 
 // ✅ Validate nonce with WordPress
 async function verifyUserLogin(nonce) {
-  if (!nonce) {
-    console.warn("❌ No nonce provided.");
-    return false;
-  }
+  if (!nonce) return false;
 
   try {
-    const res = await fetch(`${process.env.BASE_URL}/wp-json/wp/v2/users/me`, {
+    const res = await fetch(`${process.env.BASE_URL}/wp-json/custom/v1/verify-nonce`, {
+      method: "POST",
       headers: {
-        'X-WP-Nonce': nonce,
-        'Content-Type': 'application/json'
-      },
-      credentials: 'include' // not necessary in Node, but harmless
+        "X-WP-Nonce": nonce,
+        "Content-Type": "application/json"
+      }
     });
 
-    const body = await res.text();
-    console.log("🧪 WP verify response:", res.status, body);
+    const text = await res.text();
+    console.log("🧪 WP verify response:", res.status, text);
 
     return res.ok;
-  } catch (e) {
-    console.error("❌ Error verifying nonce:", e);
+  } catch (err) {
+    console.error("❌ Nonce verify failed:", err);
     return false;
   }
 }
+
 
 // ✅ Main route
 router.post('/', upload.single('file'), async (req, res) => {
