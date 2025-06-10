@@ -3,45 +3,34 @@ const uploadDir = './uploads';
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir);
 }
-
 import express from 'express';
 import dotenv from 'dotenv';
 import cors from 'cors';
 
 import generateRouter from './routes/generate.js';
 import visitorTokenRouter from './routes/visitorTokens.js';
-import transcribeRoute from './routes/transcribe.js'; // ✅ Your transcription route
+import transcribeRoute from './routes/transcribe.js'; // ✅ Added here
 import { fetchWikipediaSummary } from './utils/wikiFetcher.js';
 
 dotenv.config();
 
 const app = express();
 
-// ✅ Enable CORS for both localhost (dev) and production frontend
-app.use(cors({
-  origin: ['http://localhost:3000', 'https://doitwithai.org'],
-  credentials: true
-}));
-
+app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
 
-// ✅ Register API routes
+// ✅ Register all API routes
 app.use('/api/generate', generateRouter);
 app.use('/api/visitor-tokens', visitorTokenRouter);
-app.use('/api/transcribe', transcribeRoute); // ✅ Transcription logic
+app.use('/api/transcribe', transcribeRoute);// ✅ This handles /api/transcribe from transcribe.js
 
 // ✅ Home route
 app.get('/', (req, res) => {
   res.send('✅ AI MCQ Generator Backend is running');
 });
 
-// ✅ Health check route to test Render deployment
-app.get('/api/health', (req, res) => {
-  res.json({ ok: true, status: 'up' });
-});
-
-// ✅ Wikipedia summary fetch
+// ✅ Wikipedia summary fetch route
 app.post('/api/fetch-wikipedia', async (req, res) => {
   const { topic, lang } = req.body;
 
