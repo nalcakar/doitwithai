@@ -17,20 +17,27 @@ const redis = new Redis({
 
 const DAILY_LIMIT = 20;
 
-// ✅ Extract client IP for visitors
+// ✅ Extract client IP for visitor identification
 function getClientIP(req) {
   const forwarded = req.headers['x-forwarded-for'];
   return forwarded ? forwarded.split(',')[0].trim() : req.connection?.remoteAddress || req.socket?.remoteAddress || 'unknown';
 }
 
-// ✅ Check nonce validity via WordPress
+// ✅ Validate nonce with WordPress
 async function verifyUserLogin(nonce) {
-  if (!nonce) return false;
+  if (!nonce) {
+    console.warn("❌ No nonce provided.");
+    return false;
+  }
 
   try {
     const res = await fetch(`${process.env.BASE_URL}/wp-json/wp/v2/users/me`, {
       headers: { 'X-WP-Nonce': nonce }
     });
+
+    const body = await res.text();
+    console.log("🧪 WP verify response:", res.status, body);
+
     return res.ok;
   } catch (e) {
     console.error("❌ Error verifying nonce with WP:", e);
@@ -38,8 +45,12 @@ async function verifyUserLogin(nonce) {
   }
 }
 
+// ✅ Main route
 router.post('/', upload.single('file'), async (req, res) => {
   try {
+    // Log received headers
+    console.log("📥 Incoming headers:", req.headers);
+
     if (!req.file || !req.file.path) {
       console.warn("⚠️ No file uploaded.");
       return res.status(400).json({ error: 'No file uploaded.' });
@@ -55,7 +66,7 @@ router.post('/', upload.single('file'), async (req, res) => {
       size: req.file.size
     });
 
-    // Step 1: Detect duration for token cost
+    // Step 1: Detect duration for token calculation
     ffmpeg.ffprobe(filePath, async (err, metadata) => {
       if (err) {
         console.error("❌ ffprobe error:", err);
@@ -74,6 +85,7 @@ router.post('/', upload.single('file'), async (req, res) => {
 
       // ---------- VISITOR ----------
       if (!isLoggedIn) {
+        console.log("🧍 Treating as visitor.");
         const ip = getClientIP(req);
         const redisKey = `visitor_tokens_${ip}`;
         const current = parseInt(await redis.get(redisKey)) || 0;
@@ -86,10 +98,12 @@ router.post('/', upload.single('file'), async (req, res) => {
 
         await redis.incrby(redisKey, tokenCost);
         await redis.expire(redisKey, 86400); // 24h
+        console.log(`✅ Visitor tokens deducted: ${tokenCost}, new total = ${current + tokenCost}`);
       }
 
       // ---------- MEMBER ----------
       else {
+        console.log("👤 Treating as member.");
         const verifyRes = await fetch(`${process.env.BASE_URL}/wp-json/mcq/v1/deduct-tokens`, {
           method: 'POST',
           headers: {
@@ -105,9 +119,12 @@ router.post('/', upload.single('file'), async (req, res) => {
           fs.unlink(filePath, () => {});
           return res.status(403).json({ error: 'Token deduction failed.' });
         }
+
+        const result = await verifyRes.json();
+        console.log("✅ Member token deduction success:", result);
       }
 
-      // ---------- Transcribe ----------
+      // ---------- TRANSCRIPTION ----------
       console.log("🎧 Starting transcription...");
       const transcript = await transcribeAudio(filePath, originalName);
       fs.unlink(filePath, () => {});
