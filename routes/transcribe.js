@@ -35,7 +35,7 @@ router.post('/', upload.single('file'), async (req, res) => {
       const durationSeconds = metadata.format.duration || 0;
       const durationMinutes = Math.ceil(durationSeconds / 60);
 
-      console.log(`⏱️ Duration: ${durationMinutes} min → should deduct ${durationMinutes * 2} tokens`);
+      console.log(`⏱️ Duration: ${durationMinutes} min → should deduct ${durationMinutes * 30} tokens`);
 
       // Step 2: Transcribe
       console.log("🎧 Starting transcription...");
