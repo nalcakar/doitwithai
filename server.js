@@ -31,21 +31,14 @@ app.get('/', (req, res) => {
 });
 
 // ✅ Wikipedia summary fetch route
-// ✅ Wikipedia summary fetch route
 app.post('/api/fetch-wikipedia', async (req, res) => {
-  const { topic, lang, section } = req.body;
-
+  const { topic, lang } = req.body;
   if (!topic || !lang) {
     return res.status(400).json({ error: "Missing topic or language" });
   }
 
-  const data = await fetchWikipediaSummary(topic, lang, section);
-
-  if (data.summary) {
-    res.json(data);
-  } else {
-    res.status(404).json({ error: "No summary found" });
-  }
+  const result = await fetchWikipediaFullContent(topic, lang);
+  res.json(result);
 });
 
 
