@@ -30,7 +30,7 @@ export async function fetchWikipediaFullContent(topic, lang = 'en') {
     console.log("✅ Full Wikipedia content loaded:");
     console.log(cleaned);
 
-    return { content: cleaned };
+    return { summary: cleaned };
   } catch (error) {
     console.error("❌ Wikipedia fetch error:", error.message);
     return { content: "" };
