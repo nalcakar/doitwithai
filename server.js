@@ -10,7 +10,7 @@ import cors from 'cors';
 import generateRouter from './routes/generate.js';
 import visitorTokenRouter from './routes/visitorTokens.js';
 import transcribeRoute from './routes/transcribe.js'; // ✅ Added here
-import { fetchWikipediaSummary } from './utils/wikiFetcher.js';
+import { fetchWikipediaFullContent } from './utils/wikiFetcher.js';
 
 dotenv.config();
 
