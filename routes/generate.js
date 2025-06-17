@@ -1,7 +1,7 @@
 
 import express from 'express';
 import { generateMCQ, generateFillInBlank } from '../utils/ai.js';
-import { fetchWikipediaSummary } from '../utils/wikiFetcher.js';
+import { fetchWikipediaFullContent } from '../utils/wikiFetcher.js';
 
 const router = express.Router();
 
@@ -28,7 +28,7 @@ router.post('/', async (req, res) => {
     if (useWikipedia === true) {
       if (!uploadedFileContent || uploadedFileContent.trim().length === 0) {
         try {
-          const wikiData = await fetchWikipediaSummary(text, wikiLang || 'en');
+          const wikiData = await fetchWikipediaFullContent (text, wikiLang || 'en');
           if (wikiData && typeof wikiData.summary === 'string') {
   if (wikiData.summary.trim().length > 0) {
     console.log("📚 Wikipedia'dan alınan özet:", wikiData.summary); // ← burada gösteriliyor
