@@ -1,8 +1,7 @@
 
 import express from 'express';
 import { generateMCQ, generateFillInBlank } from '../utils/ai.js';
-import { fetchWikipediaFullContent } from '../utils/wikiFetcher.js';
-
+import { fetchWikipediaSection } from '../utils/wikiFetcher.js';
 const router = express.Router();
 
 router.post('/', async (req, res) => {
