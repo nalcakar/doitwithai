@@ -10,7 +10,7 @@ import cors from 'cors';
 import generateRouter from './routes/generate.js';
 import visitorTokenRouter from './routes/visitorTokens.js';
 import transcribeRoute from './routes/transcribe.js'; // ✅ Added here
-import { fetchWikipediaFullContent } from './utils/wikiFetcher.js';
+import { fetchWikipediaSummary } from './utils/wikiFetcher.js';
 
 dotenv.config();
 
@@ -33,14 +33,19 @@ app.get('/', (req, res) => {
 // ✅ Wikipedia summary fetch route
 app.post('/api/fetch-wikipedia', async (req, res) => {
   const { topic, lang } = req.body;
+
   if (!topic || !lang) {
     return res.status(400).json({ error: "Missing topic or language" });
   }
 
-  const result = await fetchWikipediaFullContent(topic, lang);
-  res.json(result);
-});
+  const data = await fetchWikipediaSummary(topic, lang);
 
+  if (data.summary) {
+    res.json(data);
+  } else {
+    res.status(404).json({ error: "No summary found" });
+  }
+});
 
 const port = process.env.PORT || 4000;
 app.listen(port, () => {
