@@ -67,11 +67,12 @@ export async function fetchWikipediaSummary(topic, lang = 'en', sectionName = nu
       const paragraphs = htmlText.match(/<p>(.*?)<\/p>/g);
       if (!paragraphs || paragraphs.length === 0) return { summary: "" };
 
-     const cleaned = paragraphs.slice(0, 15).map(p =>
+     const cleanedParagraphs = paragraphs.slice(0, 15).map(p =>
   p.replace(/<[^>]+>/g, '').replace(/\[\d+\]/g, '').trim()
-).join(" ");
+);
 
-return { summary: cleaned };
+return { summary: cleanedParagraphs };
+
     }
 
   } catch (error) {
