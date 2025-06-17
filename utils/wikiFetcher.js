@@ -9,51 +9,58 @@ export async function fetchWikipediaSummary(topic, lang = 'en', section = null) 
   try {
     const formattedTopic = capitalizeFirstLetter(topic.trim());
 
-    const titleRes = await fetch(`https://${lang}.wikipedia.org/w/api.php?action=parse&page=${encodeURIComponent(formattedTopic)}&prop=sections&format=json&origin=*`);
-    const titleData = await titleRes.json();
-    const page = titleData.parse;
-    if (!page) {
-      console.warn("❌ Wikipedia page not found.");
+    // 1️⃣ Get sections
+    const sectionRes = await fetch(`https://${lang}.wikipedia.org/w/api.php?action=parse&page=${encodeURIComponent(formattedTopic)}&prop=sections&format=json&origin=*`);
+    const sectionData = await sectionRes.json();
+    if (!sectionData.parse) {
+      console.warn("❌ Page not found");
       return { summary: "" };
     }
 
+    let sectionIndex = null;
+
     if (section) {
-      const matchedSection = page.sections.find(s => 
-        s.anchor.replace(/_/g, " ").toLowerCase() === section.toLowerCase()
+      // 2️⃣ Try matching section anchor (case-insensitive, tolerate _ vs space)
+      const lowerSection = section.toLowerCase().replace(/_/g, ' ').trim();
+      const found = sectionData.parse.sections.find(s =>
+        s.anchor.toLowerCase().replace(/_/g, ' ').trim() === lowerSection
       );
-      if (matchedSection) {
-        const secRes = await fetch(`https://${lang}.wikipedia.org/w/api.php?action=parse&page=${encodeURIComponent(formattedTopic)}&section=${matchedSection.index}&format=json&origin=*`);
-        const secData = await secRes.json();
-        if (secData.parse && secData.parse.text) {
-          const html = secData.parse.text["*"];
-          const paragraphs = html.match(/<p>(.*?)<\/p>/g);
-          if (!paragraphs || paragraphs.length === 0) return { summary: "" };
-          const cleaned = paragraphs.map(p =>
-            p.replace(/<[^>]+>/g, '').replace(/\[\d+\]/g, '').trim()
-          ).join(" ");
-          return { summary: cleaned };
-        }
+
+      if (found) {
+        sectionIndex = found.index;
       } else {
-        console.warn("❌ Section not found.");
+        console.warn("❌ Section not found:", section);
         return { summary: "" };
       }
-    } else {
-      // fallback to your existing logic: mobile-html and get first paragraphs
-      const htmlRes = await fetch(`https://${lang}.wikipedia.org/api/rest_v1/page/mobile-html/${encodeURIComponent(formattedTopic)}`);
-      const htmlText = await htmlRes.text();
-
-      const paragraphs = htmlText.match(/<p>(.*?)<\/p>/g);
-      if (!paragraphs || paragraphs.length === 0) return { summary: "" };
-
-      const cleaned = paragraphs.slice(0, 5).map(p =>
-        p.replace(/<[^>]+>/g, '').replace(/\[\d+\]/g, '').trim()
-      ).join(" ");
-
-      return { summary: cleaned };
     }
+
+    let parseUrl = `https://${lang}.wikipedia.org/w/api.php?action=parse&page=${encodeURIComponent(formattedTopic)}&format=json&origin=*`;
+    if (sectionIndex) {
+      parseUrl += `&section=${sectionIndex}`;
+    }
+
+    // 3️⃣ Fetch content (whole page or section)
+    const contentRes = await fetch(parseUrl);
+    const contentData = await contentRes.json();
+    if (!contentData.parse || !contentData.parse.text) {
+      console.warn("❌ Could not parse section or page content");
+      return { summary: "" };
+    }
+
+    const html = contentData.parse.text["*"];
+    // 4️⃣ Extract paragraphs
+    const paragraphs = html.match(/<p>(.*?)<\/p>/g);
+    if (!paragraphs || paragraphs.length === 0) return { summary: "" };
+
+    const cleaned = paragraphs.map(p =>
+      p.replace(/<[^>]+>/g, '').replace(/\[\d+\]/g, '').trim()
+    ).join(" ");
+
+    return { summary: cleaned };
   } catch (error) {
     console.error("❌ Wikipedia fetch error:", error.message);
     return { summary: "" };
   }
 }
+
 
