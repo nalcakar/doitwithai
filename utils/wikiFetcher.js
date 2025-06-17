@@ -1,38 +1,54 @@
 import fetch from 'node-fetch';
+import cheerio from 'cheerio';
 
-function capitalizeFirstLetter(str) {
-  if (!str) return "";
-  return str.charAt(0).toUpperCase() + str.slice(1);
-}
-
-export async function fetchWikipediaFullContent(topic, lang = 'en') {
+export async function fetchWikipediaFullContent(topic, lang = 'en', sectionTitle = '') {
   try {
-    const formattedTopic = capitalizeFirstLetter(topic.trim());
+    const encodedTopic = encodeURIComponent(topic);
+    const url = `https://${lang}.wikipedia.org/api/rest_v1/page/mobile-html/${encodedTopic}`;
 
-    const titleRes = await fetch(`https://${lang}.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(formattedTopic)}&format=json&origin=*`);
-    const titleData = await titleRes.json();
-    const pages = titleData.query.pages;
-    const firstPage = Object.values(pages)[0];
-    if (firstPage.missing) {
-      console.warn("❌ Wikipedia page not found.");
-      return { content: "" };
+    const res = await fetch(url);
+    if (!res.ok) {
+      console.error(`❌ Wikipedia fetch failed: ${res.statusText}`);
+      throw new Error(`Wikipedia fetch failed: ${res.statusText}`);
     }
 
-    const normalizedTitle = firstPage.title;
+    const html = await res.text();
+    const $ = cheerio.load(html);
 
-    const htmlRes = await fetch(`https://${lang}.wikipedia.org/api/rest_v1/page/mobile-html/${encodeURIComponent(normalizedTitle)}`);
-    const htmlText = await htmlRes.text();
+    let extractedText = '';
 
-    // Remove HTML tags for plain text (or you could return raw HTML if you prefer)
-    const cleaned = htmlText.replace(/<[^>]+>/g, '').replace(/\[\d+\]/g, '').trim();
+    if (sectionTitle) {
+      // Locate the section heading
+      const heading = $(`h2:contains("${sectionTitle}")`).first();
 
-    // 👇 Log full content
-    console.log("✅ Full Wikipedia content loaded:");
-    console.log(cleaned);
+      if (heading.length === 0) {
+        console.warn(`⚠️ Section "${sectionTitle}" not found.`);
+        return { summary: '' };
+      }
 
-    return { summary: cleaned };
-  } catch (error) {
-    console.error("❌ Wikipedia fetch error:", error.message);
-    return { content: "" };
+      // Collect content until next h2
+      const content = [];
+      let elem = heading.next();
+
+      while (elem.length && elem[0].tagName !== 'h2') {
+        content.push($.html(elem));
+        elem = elem.next();
+      }
+
+      extractedText = content.join('\n');
+    } else {
+      // If no sectionTitle, return full text
+      extractedText = $('body').text();
+    }
+
+    // Clean up extracted HTML into plain text
+    const cleanText = cheerio.load(`<div>${extractedText}</div>`)('div').text().replace(/\s+/g, ' ').trim();
+
+    console.log("✅ Extracted section text (preview):", cleanText.slice(0, 500)); // First 500 chars preview
+
+    return { summary: cleanText };
+  } catch (err) {
+    console.error("❌ Error in fetchWikipediaFullContent:", err);
+    return { summary: '' };
   }
 }
