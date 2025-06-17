@@ -5,12 +5,16 @@ function capitalizeFirstLetter(str) {
   return str.charAt(0).toUpperCase() + str.slice(1);
 }
 
+function normalizeAnchor(str) {
+  return str.toLowerCase().replace(/[\s_]+/g, '');
+}
+
 export async function fetchWikipediaSummary(topic, lang = 'en', sectionName = null) {
   try {
     const formattedTopic = capitalizeFirstLetter(topic.trim());
 
     if (sectionName) {
-      // Fetch section list to find index
+      // Step 1: Fetch section list
       const titleRes = await fetch(`https://${lang}.wikipedia.org/w/api.php?action=parse&page=${encodeURIComponent(formattedTopic)}&format=json&origin=*`);
       const titleData = await titleRes.json();
 
@@ -19,8 +23,12 @@ export async function fetchWikipediaSummary(topic, lang = 'en', sectionName = nu
         return { summary: "" };
       }
 
+      console.log(`🔎 Available sections for '${topic}':`);
+      titleData.parse.sections.forEach(sec => console.log(`- ${sec.anchor}`));
+
+      const normalizedTarget = normalizeAnchor(sectionName);
       const targetSection = titleData.parse.sections.find(sec =>
-        sec.anchor.toLowerCase() === sectionName.toLowerCase()
+        normalizeAnchor(sec.anchor) === normalizedTarget
       );
 
       if (!targetSection) {
@@ -28,7 +36,7 @@ export async function fetchWikipediaSummary(topic, lang = 'en', sectionName = nu
         return { summary: "" };
       }
 
-      // Fetch the content of the section
+      // Step 2: Fetch the section content
       const sectionRes = await fetch(`https://${lang}.wikipedia.org/w/api.php?action=parse&page=${encodeURIComponent(formattedTopic)}&section=${targetSection.index}&format=json&origin=*`);
       const sectionData = await sectionRes.json();
 
@@ -42,7 +50,7 @@ export async function fetchWikipediaSummary(topic, lang = 'en', sectionName = nu
       }
 
     } else {
-      // Default behavior: get general summary
+      // Default: Fetch intro summary
       const titleRes = await fetch(`https://${lang}.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(formattedTopic)}&format=json&origin=*`);
       const titleData = await titleRes.json();
       const pages = titleData.query.pages;
