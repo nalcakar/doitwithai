@@ -67,7 +67,7 @@ export async function fetchWikipediaSummary(topic, lang = 'en', sectionName = nu
       const paragraphs = htmlText.match(/<p>(.*?)<\/p>/g);
       if (!paragraphs || paragraphs.length === 0) return { summary: "" };
 
-      const cleaned = paragraphs.slice(0, 5).map(p =>
+      const cleaned = paragraphs.slice(0, 10).map(p =>
         p.replace(/<[^>]+>/g, '').replace(/\[\d+\]/g, '').trim()
       ).join(" ");
 
