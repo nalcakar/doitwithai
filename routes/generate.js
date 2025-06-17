@@ -27,7 +27,7 @@ router.post('/', async (req, res) => {
     if (useWikipedia === true) {
       if (!uploadedFileContent || uploadedFileContent.trim().length === 0) {
         try {
-          const wikiData = await fetchWikipediaFullContent (text, wikiLang || 'en');
+          const wikiData = await fetchWikipediaSection (text, wikiLang || 'en');
           if (wikiData && typeof wikiData.summary === 'string') {
   if (wikiData.summary.trim().length > 0) {
     console.log("📚 Wikipedia'dan alınan özet:", wikiData.summary); // ← burada gösteriliyor
