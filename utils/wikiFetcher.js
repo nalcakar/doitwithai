@@ -1,54 +1,52 @@
 import fetch from 'node-fetch';
-import cheerio from 'cheerio';
+import { load } from 'cheerio';  // ✔ correct ESM import
 
-export async function fetchWikipediaFullContent(topic, lang = 'en', sectionTitle = '') {
+export async function fetchWikipediaSection(topic, lang = 'en', sectionTitle = '') {
   try {
-    const encodedTopic = encodeURIComponent(topic);
-    const url = `https://${lang}.wikipedia.org/api/rest_v1/page/mobile-html/${encodedTopic}`;
+    const encodedTitle = encodeURIComponent(topic);
+    const url = `https://${lang}.wikipedia.org/wiki/${encodedTitle}`;
+    const response = await fetch(url);
 
-    const res = await fetch(url);
-    if (!res.ok) {
-      console.error(`❌ Wikipedia fetch failed: ${res.statusText}`);
-      throw new Error(`Wikipedia fetch failed: ${res.statusText}`);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch Wikipedia page: ${response.statusText}`);
     }
 
-    const html = await res.text();
-    const $ = cheerio.load(html);
+    const html = await response.text();
+    const $ = load(html);
 
-    let extractedText = '';
-
-    if (sectionTitle) {
-      // Locate the section heading
-      const heading = $(`h2:contains("${sectionTitle}")`).first();
-
-      if (heading.length === 0) {
-        console.warn(`⚠️ Section "${sectionTitle}" not found.`);
-        return { summary: '' };
-      }
-
-      // Collect content until next h2
-      const content = [];
-      let elem = heading.next();
-
-      while (elem.length && elem[0].tagName !== 'h2') {
-        content.push($.html(elem));
-        elem = elem.next();
-      }
-
-      extractedText = content.join('\n');
-    } else {
-      // If no sectionTitle, return full text
-      extractedText = $('body').text();
+    if (!sectionTitle) {
+      // If no section requested, return all text
+      return $('body').text();
     }
 
-    // Clean up extracted HTML into plain text
-    const cleanText = cheerio.load(`<div>${extractedText}</div>`)('div').text().replace(/\s+/g, ' ').trim();
+    // Find the section header
+    let content = '';
+    const headings = $('h2, h3, h4');
+    let found = false;
 
-    console.log("✅ Extracted section text (preview):", cleanText.slice(0, 500)); // First 500 chars preview
+    headings.each((_, el) => {
+      if (found) {
+        // Stop if next major section starts (same or higher heading level)
+        if (/^H[23]$/.test(el.tagName)) return false;
+        content += $(el).text() + '\n';
+        content += $(el).nextUntil('h2, h3').text() + '\n';
+      } else {
+        const headingText = $(el).text().replace(/\[edit\]/g, '').trim();
+        if (headingText.toLowerCase() === sectionTitle.toLowerCase()) {
+          found = true;
+          content += headingText + '\n';
+          content += $(el).nextUntil('h2, h3').text() + '\n';
+        }
+      }
+    });
 
-    return { summary: cleanText };
+    if (!content) {
+      throw new Error(`Section "${sectionTitle}" not found.`);
+    }
+
+    return content.trim();
   } catch (err) {
-    console.error("❌ Error in fetchWikipediaFullContent:", err);
-    return { summary: '' };
+    console.error(`❌ fetchWikipediaSection error:`, err);
+    throw err;
   }
 }
