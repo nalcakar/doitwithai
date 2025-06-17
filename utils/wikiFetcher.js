@@ -5,34 +5,55 @@ function capitalizeFirstLetter(str) {
   return str.charAt(0).toUpperCase() + str.slice(1);
 }
 
-export async function fetchWikipediaSummary(topic, lang = 'en') {
+export async function fetchWikipediaSummary(topic, lang = 'en', section = null) {
   try {
     const formattedTopic = capitalizeFirstLetter(topic.trim());
 
-    const titleRes = await fetch(`https://${lang}.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(formattedTopic)}&format=json&origin=*`);
+    const titleRes = await fetch(`https://${lang}.wikipedia.org/w/api.php?action=parse&page=${encodeURIComponent(formattedTopic)}&prop=sections&format=json&origin=*`);
     const titleData = await titleRes.json();
-    const pages = titleData.query.pages;
-    const firstPage = Object.values(pages)[0];
-    if (firstPage.missing) {
+    const page = titleData.parse;
+    if (!page) {
       console.warn("❌ Wikipedia page not found.");
       return { summary: "" };
     }
 
-    const normalizedTitle = firstPage.title;
+    if (section) {
+      const matchedSection = page.sections.find(s => 
+        s.anchor.replace(/_/g, " ").toLowerCase() === section.toLowerCase()
+      );
+      if (matchedSection) {
+        const secRes = await fetch(`https://${lang}.wikipedia.org/w/api.php?action=parse&page=${encodeURIComponent(formattedTopic)}&section=${matchedSection.index}&format=json&origin=*`);
+        const secData = await secRes.json();
+        if (secData.parse && secData.parse.text) {
+          const html = secData.parse.text["*"];
+          const paragraphs = html.match(/<p>(.*?)<\/p>/g);
+          if (!paragraphs || paragraphs.length === 0) return { summary: "" };
+          const cleaned = paragraphs.map(p =>
+            p.replace(/<[^>]+>/g, '').replace(/\[\d+\]/g, '').trim()
+          ).join(" ");
+          return { summary: cleaned };
+        }
+      } else {
+        console.warn("❌ Section not found.");
+        return { summary: "" };
+      }
+    } else {
+      // fallback to your existing logic: mobile-html and get first paragraphs
+      const htmlRes = await fetch(`https://${lang}.wikipedia.org/api/rest_v1/page/mobile-html/${encodeURIComponent(formattedTopic)}`);
+      const htmlText = await htmlRes.text();
 
-    const htmlRes = await fetch(`https://${lang}.wikipedia.org/api/rest_v1/page/mobile-html/${encodeURIComponent(normalizedTitle)}`);
-    const htmlText = await htmlRes.text();
+      const paragraphs = htmlText.match(/<p>(.*?)<\/p>/g);
+      if (!paragraphs || paragraphs.length === 0) return { summary: "" };
 
-    const paragraphs = htmlText.match(/<p>(.*?)<\/p>/g);
-    if (!paragraphs || paragraphs.length === 0) return { summary: "" };
+      const cleaned = paragraphs.slice(0, 5).map(p =>
+        p.replace(/<[^>]+>/g, '').replace(/\[\d+\]/g, '').trim()
+      ).join(" ");
 
-    const cleaned = paragraphs.slice(0, 5).map(p =>
-      p.replace(/<[^>]+>/g, '').replace(/\[\d+\]/g, '').trim()
-    ).join(" ");
-
-    return { summary: cleaned };
+      return { summary: cleaned };
+    }
   } catch (error) {
     console.error("❌ Wikipedia fetch error:", error.message);
     return { summary: "" };
   }
 }
+
